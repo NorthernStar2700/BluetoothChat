@@ -1,4 +1,4 @@
-﻿namespace BluetoothChat
+﻿namespace BluetoothChat.Constants
 {
     enum Mode
     {
