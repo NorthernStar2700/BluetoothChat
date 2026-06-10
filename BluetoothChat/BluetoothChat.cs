@@ -1,20 +1,18 @@
-﻿using System;
-using System.Windows.Forms;
-using BluetoothChat.Constants;
+﻿using BluetoothChat.Constants;
 using BluetoothChat.Functions;
 using BluetoothChat.Utilities;
+using System;
+using System.Windows.Forms;
 
 namespace BluetoothChat
 {
     public partial class FrmBluetoothChat : Form
     {
-        public string DisplayName = Properties.Settings.Default.CurrentUsername;
+        public string DisplayName { get; private set; }
 
-        private Mode appMode;
+        private AppMode appMode;
         private readonly AppClient client;
         private readonly AppServer server;
-        private readonly string consolePrompt = string.Format("Connect to or create a server using the \"Server\" tab. " +
-   "{0}{0}Look up a devices address using the \"Address Lookup\" tab. {0}{0}Change your display name using the \"Username\" tab.", Environment.NewLine);
         private readonly string bluetoothPrompt = "Enter Bluetooth address: ";
         private readonly string username = "Current Username: ";
 
@@ -23,8 +21,8 @@ namespace BluetoothChat
             InitializeComponent();
             client = new AppClient(this);
             server = new AppServer(this);
-            appMode = Mode.Inactive;
-            RtbConsole.Text = consolePrompt;
+            appMode = AppMode.Inactive;
+            RtbConsole.Text = Messages.ConsolePrompt;
             AcceptButton = BtnSend;
         }
 
@@ -36,6 +34,7 @@ namespace BluetoothChat
                 Properties.Settings.Default.CurrentUsername = DisplayName;
             }
 
+            DisplayName = Properties.Settings.Default.CurrentUsername;
             CurrentUsernameToolStripMenuItem.Text = username + DisplayName;
         }
 
@@ -53,32 +52,35 @@ namespace BluetoothChat
         private async void ChangeToolStripMenuItem_Click(object sender, EventArgs e)
         {
             string oldUsername = DisplayName;
-            FrmUsernameDialog dialog = new FrmUsernameDialog();
-            DialogResult result = dialog.ShowDialog();
-            if (result != DialogResult.OK)
+            using (FrmUsernameDialog dialog = new FrmUsernameDialog(Properties.Settings.Default.CurrentUsername))
             {
-                return;
-            }
+                DialogResult result = dialog.ShowDialog();
+                if (result != DialogResult.OK)
+                {
+                    return;
+                }
 
-            string newUsername = dialog.NewUsername;
-            if (!string.IsNullOrWhiteSpace(newUsername))
-            {
-                CurrentUsernameToolStripMenuItem.Text = username + newUsername;
-                Properties.Settings.Default.CurrentUsername = newUsername;
-                DisplayName = newUsername;
-            }
+                string newUsername = dialog.NewUsername;
 
-            if (appMode == Mode.Connect && client != null && client.Client.Connected)
-            {
-                string message = $"[{oldUsername}] changed their name to [{DisplayName}]";
-                await client.SendMessageToServer(client.Client.GetStream(), message);
-            }
+                if (!string.IsNullOrWhiteSpace(newUsername))
+                {
+                    CurrentUsernameToolStripMenuItem.Text = username + newUsername;
+                    Properties.Settings.Default.CurrentUsername = newUsername;
+                    DisplayName = newUsername;
+                }
 
-            if (appMode == Mode.Create && server.Listener != null && server.Listener.Active && server.CancelToken != null)
-            {
-                string message = $"Host [{oldUsername}] changed their name to [{DisplayName}]";
-                RtbConsole.AppendText(DisplayFormat.FormatMessage(message));
-                await server.SendMessageToClientsAsync(message, server.CancelToken.Token);
+                if (appMode == AppMode.Client && client.IsConnected)
+                {
+                    string message = $"[{oldUsername}] changed their name to [{DisplayName}]";
+                    await client.SendMessageToServer(client.Client.GetStream(), message);
+                }
+
+                if (appMode == AppMode.Host && server.IsRunning && server.CancelToken != null)
+                {
+                    string message = $"Host [{oldUsername}] changed their name to [{DisplayName}]";
+                    RtbConsole.AppendText(DisplayFormat.FormatMessage(message));
+                    await server.SendMessageToClientsAsync(message, server.CancelToken.Token);
+                }
             }
         }
 
@@ -96,87 +98,118 @@ namespace BluetoothChat
 
         private async void BtnSend_Click(object sender, EventArgs e)
         {
-            if (appMode == Mode.Inactive || string.IsNullOrWhiteSpace(TxtInput.Text))
+            try
             {
-                return;
-            }
-            else
-            {
-                if ((server.Listener == null || !server.Listener.Active) && appMode == Mode.Create)
+                if (appMode == AppMode.Inactive || string.IsNullOrWhiteSpace(TxtInput.Text))
                 {
-                    server.Start();
-                }
-                else if ((client.Client == null || !client.Client.Connected) && appMode == Mode.Connect)
-                {
-                    await client.AttemptConnection();
+                    return;
                 }
                 else
                 {
-                    if (server.Listener.Active && appMode == Mode.Create)
+                    if (!server.IsRunning && appMode == AppMode.Host)
                     {
-                        string message = $"[HOST] [{DisplayName}]: {TxtInput.Text}";
-                        BeginInvoke((Action)(() => RtbConsole.AppendText(DisplayFormat.FormatMessage(message))));
-                        await server.SendMessageToClientsAsync(message, server.CancelToken.Token);
+                        server.Start();
                     }
-                    else if (client.Client.Connected && appMode == Mode.Connect)
+                    else if (!client.IsConnected && appMode == AppMode.Client)
                     {
-                        string message = $"[{DisplayName}]: {TxtInput.Text}";
-                        await client.SendMessageToServer(client.Client.GetStream(), message);
+                        await client.AttemptConnection();
                     }
+                    else
+                    {
+                        if (server.IsRunning && appMode == AppMode.Host)
+                        {
+                            string message = $"[HOST] [{DisplayName}]: {TxtInput.Text}";
+                            BeginInvoke((Action)(() => RtbConsole.AppendText(DisplayFormat.FormatMessage(message))));
+                            await server.SendMessageToClientsAsync(message, server.CancelToken.Token);
+                        }
+                        else if (client.IsConnected && appMode == AppMode.Client)
+                        {
+                            string message = $"[{DisplayName}]: {TxtInput.Text}";
+                            await client.SendMessageToServer(client.Client.GetStream(), message);
+                        }
+                    }
+                    TxtInput.Clear();
                 }
-                TxtInput.Clear();
             }
+            catch { }
         }
 
         private async void BtnExit_Click(object sender, EventArgs e)
         {
-            if (appMode != Mode.Inactive)
+            if (appMode != AppMode.Inactive)
             {
-                if (server.Listener != null && server.Listener.Active && appMode == Mode.Create)
+                if (server.IsRunning && appMode == AppMode.Host)
                 {
-                    server.Listener.Stop();
+                    server.Stop();
                 }
 
-                if (client.Client != null && client.Client.Connected && appMode == Mode.Connect)
+                if (client.IsConnected && appMode == AppMode.Client)
                 {
                     await client.SendLeaveMessage();
-                    client.Client.Close();
                 }
 
                 ResetUI();
             }
             else
             {
-                Application.Exit();
+                System.Windows.Forms.Application.Exit();
             }
         }
 
         private void ConnectToServerPrompt()
         {
-            appMode = Mode.Connect;
+            appMode = AppMode.Client;
             RtbConsole.Clear();
             RtbConsole.Text = bluetoothPrompt;
         }
 
         private void CreateServerPrompt()
         {
-            appMode = Mode.Create;
+            appMode = AppMode.Host;
             RtbConsole.Clear();
             server.Start();
         }
 
         private void ToggleServerTabs()
         {
-            CreateToolStripMenuItem.Enabled = appMode == Mode.Inactive;
-            ConnectToolStripMenuItem.Enabled = appMode == Mode.Inactive;
+            CreateToolStripMenuItem.Enabled = appMode == AppMode.Inactive;
+            ConnectToolStripMenuItem.Enabled = appMode == AppMode.Inactive;
         }
 
         public void ResetUI()
         {
-            appMode = Mode.Inactive;
-            BeginInvoke((Action)(() => ToggleServerTabs()));
-            BeginInvoke((Action)(() => RtbConsole.Clear()));
-            BeginInvoke((Action)(() => RtbConsole.Text = consolePrompt));
+            appMode = AppMode.Inactive;
+            BeginInvoke((Action)(() =>
+            {
+                ToggleServerTabs();
+                RtbConsole.Clear();
+                RtbConsole.Text = Messages.ConsolePrompt;
+            }));
+        }
+
+        public void AppendConsoleText(string text)
+        {
+            BeginInvoke((Action)(() => RtbConsole.Text += text ));
+        }
+
+        public void ClearConsoleText()
+        {
+            BeginInvoke((Action)(() => RtbConsole.Clear() ));
+        }
+
+        public void ClearInputText()
+        {
+            BeginInvoke((Action)(() => TxtInput.Clear()));
+        }
+
+        public void SetSendButtonEnabled(bool enabled)
+        {
+            BeginInvoke((Action)(() => BtnSend.Enabled = enabled));
+        }
+
+        public string GetInputText()
+        {
+            return TxtInput.Text;
         }
     }
 }

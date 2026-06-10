@@ -6,30 +6,35 @@ namespace BluetoothChat
     public partial class FrmUsernameDialog : Form
     {
         public string NewUsername { get; private set; }
+        private readonly string currentUsername;
 
-        public FrmUsernameDialog()
+        public FrmUsernameDialog(string currentUsername)
         {
             InitializeComponent();
+            this.currentUsername = currentUsername;
         }
 
         private void FrmUsernameDialog_Load(object sender, EventArgs e)
         {
-            LblCurrentUsername.Text += $" {Properties.Settings.Default.CurrentUsername}";
+            LblCurrentUsername.Text = $"Current Username: {currentUsername}";
             AcceptButton = BtnOk;
+            CancelButton = BtnCancel;
         }
 
         private void BtnOk_Click(object sender, EventArgs e)
         {
-            if (!string.IsNullOrWhiteSpace(TxtUsername.Text))
-            {
-                NewUsername = TxtUsername.Text;
-                DialogResult = DialogResult.OK;
-            }
+            NewUsername = TxtUsername.Text.Trim();
+            DialogResult = DialogResult.OK;
         }
 
         private void BtnCancel_Click(object sender, EventArgs e)
         {
             DialogResult = DialogResult.Cancel;
+        }
+
+        private void TxtUsername_TextChanged(object sender, EventArgs e)
+        {
+            BtnOk.Enabled = !string.IsNullOrWhiteSpace(TxtUsername.Text);
         }
     }
 }

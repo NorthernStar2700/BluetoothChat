@@ -15,12 +15,10 @@ namespace BluetoothChat.Functions
     {
         public BluetoothListener Listener;
         public CancellationTokenSource CancelToken;
+        public bool IsRunning { get; private set; }
 
         private readonly FrmBluetoothChat app;
         private List<BluetoothClient> clients;
-        private readonly string consolePrompt = string.Format("Connect to or create a server using the \"Server\" tab. " +
-"{0}{0}Look up a devices address using the \"Address Lookup\" tab. {0}{0}Change your display name using the \"Username\" tab.", Environment.NewLine);
-        private readonly string terminateMessage = "&re9&";
         private readonly object clientLock = new object();
 
         public AppServer(FrmBluetoothChat app)
@@ -31,7 +29,7 @@ namespace BluetoothChat.Functions
         public void Start()
         {
             CancelToken = new CancellationTokenSource();
-            Listener = new BluetoothListener(Common.Guid);
+            Listener = new BluetoothListener(Messages.Guid);
             clients = new List<BluetoothClient>();
 
             app.RtbConsole.Text = DisplayFormat.FormatMessage("Starting server...");
@@ -42,13 +40,14 @@ namespace BluetoothChat.Functions
             catch (Exception e)
             {
                 app.RtbConsole.Text = DisplayFormat.FormatMessage($"Unable to start Listener: {e.Message}");
-                app.RtbConsole.AppendText(DisplayFormat.FormatMessage(consolePrompt));
+                app.RtbConsole.AppendText(DisplayFormat.FormatMessage(Messages.ConsolePrompt));
                 return;
             }
 
             app.RtbConsole.AppendText(DisplayFormat.FormatMessage("Waiting for clients"));
             app.RtbConsole.AppendText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
             _ = Task.Run(() => HostSessionAsync(Listener, CancelToken.Token));
+            IsRunning = true;
         }
 
         public void Stop()
@@ -96,6 +95,8 @@ namespace BluetoothChat.Functions
 
                 CancelToken = null;
             }
+
+            IsRunning = false;
         }
 
         private async Task HostSessionAsync(BluetoothListener Listener, CancellationToken ct)
@@ -144,7 +145,7 @@ namespace BluetoothChat.Functions
                     while (true)
                     {
                         string text = stringBuilder.ToString();
-                        int index = text.IndexOf(terminateMessage);
+                        int index = text.IndexOf(Messages.TerminateMessage);
                         if (index == -1)
                             break;
 
@@ -155,7 +156,7 @@ namespace BluetoothChat.Functions
                         stringBuilder.Clear();
 
                         // Append the flag to the builder
-                        stringBuilder.Append(text.Substring(index, terminateMessage.Length));
+                        stringBuilder.Append(text.Substring(index, Messages.TerminateMessage.Length));
 
                         if (!string.IsNullOrWhiteSpace(message))
                         {
@@ -242,8 +243,8 @@ namespace BluetoothChat.Functions
 
             try
             {
-                client.Close();
-                client.Dispose();
+                client?.Close();
+                client?.Dispose();
             }
             catch { }
         }

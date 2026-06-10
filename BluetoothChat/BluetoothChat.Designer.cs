@@ -70,7 +70,7 @@
             // ChangeToolStripMenuItem
             // 
             this.ChangeToolStripMenuItem.Name = "ChangeToolStripMenuItem";
-            this.ChangeToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.ChangeToolStripMenuItem.Size = new System.Drawing.Size(142, 26);
             this.ChangeToolStripMenuItem.Text = "Change";
             this.ChangeToolStripMenuItem.Click += new System.EventHandler(this.ChangeToolStripMenuItem_Click);
             // 
@@ -101,14 +101,14 @@
             // CreateToolStripMenuItem
             // 
             this.CreateToolStripMenuItem.Name = "CreateToolStripMenuItem";
-            this.CreateToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.CreateToolStripMenuItem.Size = new System.Drawing.Size(146, 26);
             this.CreateToolStripMenuItem.Text = "Create";
             this.CreateToolStripMenuItem.Click += new System.EventHandler(this.CreateToolStripMenuItem_Click);
             // 
             // ConnectToolStripMenuItem
             // 
             this.ConnectToolStripMenuItem.Name = "ConnectToolStripMenuItem";
-            this.ConnectToolStripMenuItem.Size = new System.Drawing.Size(224, 26);
+            this.ConnectToolStripMenuItem.Size = new System.Drawing.Size(146, 26);
             this.ConnectToolStripMenuItem.Text = "Connect";
             this.ConnectToolStripMenuItem.Click += new System.EventHandler(this.ConnectToolStripMenuItem_Click);
             // 
@@ -148,6 +148,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.TxtInput.Location = new System.Drawing.Point(69, 518);
             this.TxtInput.Margin = new System.Windows.Forms.Padding(4);
+            this.TxtInput.MaxLength = 2000;
             this.TxtInput.Name = "TxtInput";
             this.TxtInput.Size = new System.Drawing.Size(764, 22);
             this.TxtInput.TabIndex = 3;

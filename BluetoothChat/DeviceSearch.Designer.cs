@@ -37,56 +37,63 @@
             // LblSearch
             // 
             this.LblSearch.AutoSize = true;
-            this.LblSearch.Location = new System.Drawing.Point(12, 8);
+            this.LblSearch.Location = new System.Drawing.Point(16, 10);
+            this.LblSearch.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.LblSearch.Name = "LblSearch";
-            this.LblSearch.Size = new System.Drawing.Size(64, 13);
+            this.LblSearch.Size = new System.Drawing.Size(77, 16);
             this.LblSearch.TabIndex = 0;
             this.LblSearch.Text = "Searching...";
             // 
             // LbxDevices
             // 
             this.LbxDevices.FormattingEnabled = true;
-            this.LbxDevices.Location = new System.Drawing.Point(14, 29);
+            this.LbxDevices.ItemHeight = 16;
+            this.LbxDevices.Location = new System.Drawing.Point(19, 36);
+            this.LbxDevices.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.LbxDevices.Name = "LbxDevices";
-            this.LbxDevices.Size = new System.Drawing.Size(363, 212);
+            this.LbxDevices.Size = new System.Drawing.Size(483, 260);
             this.LbxDevices.TabIndex = 1;
             // 
             // BtnRestart
             // 
-            this.BtnRestart.Location = new System.Drawing.Point(117, 249);
+            this.BtnRestart.Location = new System.Drawing.Point(156, 306);
+            this.BtnRestart.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.BtnRestart.Name = "BtnRestart";
-            this.BtnRestart.Size = new System.Drawing.Size(75, 23);
+            this.BtnRestart.Size = new System.Drawing.Size(100, 28);
             this.BtnRestart.TabIndex = 2;
             this.BtnRestart.Text = "Restart";
             this.BtnRestart.UseVisualStyleBackColor = true;
-            this.BtnRestart.Click += new System.EventHandler(this.btnRestart_Click);
+            this.BtnRestart.Click += new System.EventHandler(this.BtnRestart_Click);
             // 
             // BtnCopy
             // 
-            this.BtnCopy.Location = new System.Drawing.Point(198, 249);
+            this.BtnCopy.Location = new System.Drawing.Point(264, 306);
+            this.BtnCopy.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.BtnCopy.Name = "BtnCopy";
-            this.BtnCopy.Size = new System.Drawing.Size(75, 23);
+            this.BtnCopy.Size = new System.Drawing.Size(100, 28);
             this.BtnCopy.TabIndex = 3;
             this.BtnCopy.Text = "Copy";
             this.BtnCopy.UseVisualStyleBackColor = true;
-            this.BtnCopy.Click += new System.EventHandler(this.btnCopy_Click);
+            this.BtnCopy.Click += new System.EventHandler(this.BtnCopy_Click);
             // 
             // FrmDeviceSearch
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(390, 281);
+            this.ClientSize = new System.Drawing.Size(517, 336);
             this.Controls.Add(this.BtnCopy);
             this.Controls.Add(this.BtnRestart);
             this.Controls.Add(this.LbxDevices);
             this.Controls.Add(this.LblSearch);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
+            this.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(406, 320);
-            this.MinimumSize = new System.Drawing.Size(406, 320);
+            this.MaximumSize = new System.Drawing.Size(535, 383);
+            this.MinimumSize = new System.Drawing.Size(535, 383);
             this.Name = "FrmDeviceSearch";
             this.Text = "Device Searcher";
-            this.Load += new System.EventHandler(this.frmDeviceSearch_Load);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmDeviceSearch_FormClosing);
+            this.Load += new System.EventHandler(this.FrmDeviceSearch_Load);
             this.ResumeLayout(false);
             this.PerformLayout();
 

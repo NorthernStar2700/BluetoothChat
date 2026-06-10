@@ -38,33 +38,39 @@
             // LblCurrentUsername
             // 
             this.LblCurrentUsername.AutoSize = true;
-            this.LblCurrentUsername.Location = new System.Drawing.Point(12, 40);
+            this.LblCurrentUsername.Location = new System.Drawing.Point(16, 49);
+            this.LblCurrentUsername.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.LblCurrentUsername.Name = "LblCurrentUsername";
-            this.LblCurrentUsername.Size = new System.Drawing.Size(95, 13);
+            this.LblCurrentUsername.Size = new System.Drawing.Size(118, 16);
             this.LblCurrentUsername.TabIndex = 0;
             this.LblCurrentUsername.Text = "Current Username:";
             // 
             // label1
             // 
             this.label1.AutoSize = true;
-            this.label1.Location = new System.Drawing.Point(12, 12);
+            this.label1.Location = new System.Drawing.Point(16, 15);
+            this.label1.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
             this.label1.Name = "label1";
-            this.label1.Size = new System.Drawing.Size(124, 13);
+            this.label1.Size = new System.Drawing.Size(152, 16);
             this.label1.TabIndex = 1;
             this.label1.Text = "Enter in a new username";
             // 
             // TxtUsername
             // 
-            this.TxtUsername.Location = new System.Drawing.Point(12, 69);
+            this.TxtUsername.Location = new System.Drawing.Point(16, 85);
+            this.TxtUsername.Margin = new System.Windows.Forms.Padding(4);
             this.TxtUsername.Name = "TxtUsername";
-            this.TxtUsername.Size = new System.Drawing.Size(253, 20);
+            this.TxtUsername.Size = new System.Drawing.Size(336, 22);
             this.TxtUsername.TabIndex = 2;
+            this.TxtUsername.TextChanged += new System.EventHandler(this.TxtUsername_TextChanged);
             // 
             // BtnOk
             // 
-            this.BtnOk.Location = new System.Drawing.Point(61, 100);
+            this.BtnOk.Enabled = false;
+            this.BtnOk.Location = new System.Drawing.Point(83, 123);
+            this.BtnOk.Margin = new System.Windows.Forms.Padding(4);
             this.BtnOk.Name = "BtnOk";
-            this.BtnOk.Size = new System.Drawing.Size(75, 23);
+            this.BtnOk.Size = new System.Drawing.Size(100, 28);
             this.BtnOk.TabIndex = 3;
             this.BtnOk.Text = "Ok";
             this.BtnOk.UseVisualStyleBackColor = true;
@@ -72,9 +78,11 @@
             // 
             // BtnCancel
             // 
-            this.BtnCancel.Location = new System.Drawing.Point(142, 100);
+            this.BtnCancel.DialogResult = System.Windows.Forms.DialogResult.Cancel;
+            this.BtnCancel.Location = new System.Drawing.Point(191, 123);
+            this.BtnCancel.Margin = new System.Windows.Forms.Padding(4);
             this.BtnCancel.Name = "BtnCancel";
-            this.BtnCancel.Size = new System.Drawing.Size(75, 23);
+            this.BtnCancel.Size = new System.Drawing.Size(100, 28);
             this.BtnCancel.TabIndex = 4;
             this.BtnCancel.Text = "Cancel";
             this.BtnCancel.UseVisualStyleBackColor = true;
@@ -82,17 +90,18 @@
             // 
             // FrmUsernameDialog
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(277, 134);
+            this.ClientSize = new System.Drawing.Size(367, 167);
             this.Controls.Add(this.BtnCancel);
             this.Controls.Add(this.BtnOk);
             this.Controls.Add(this.TxtUsername);
             this.Controls.Add(this.label1);
             this.Controls.Add(this.LblCurrentUsername);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+            this.Margin = new System.Windows.Forms.Padding(4);
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(293, 173);
+            this.MaximumSize = new System.Drawing.Size(385, 216);
             this.Name = "FrmUsernameDialog";
             this.Text = "Change Username";
             this.Load += new System.EventHandler(this.FrmUsernameDialog_Load);

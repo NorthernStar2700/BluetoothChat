@@ -56,7 +56,7 @@
     <Compile Include="BluetoothChat.Designer.cs">
       <DependentUpon>BluetoothChat.cs</DependentUpon>
     </Compile>
-    <Compile Include="Constants\Common.cs" />
+    <Compile Include="Constants\Messages.cs" />
     <Compile Include="Functions\AppClient.cs" />
     <Compile Include="Functions\AppServer.cs" />
     <Compile Include="UsernameDialog.cs">
@@ -71,7 +71,7 @@
     <Compile Include="DeviceSearch.Designer.cs">
       <DependentUpon>DeviceSearch.cs</DependentUpon>
     </Compile>
-    <Compile Include="Constants\Mode.cs" />
+    <Compile Include="Constants\AppMode.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities\DisplayFormat.cs" />
