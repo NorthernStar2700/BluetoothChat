@@ -13,13 +13,15 @@ namespace BluetoothChat.Functions
 {
     public class AppServer
     {
-        public BluetoothListener Listener;
-        public CancellationTokenSource CancelToken;
         public bool IsRunning { get; private set; }
 
         private readonly FrmBluetoothChat app;
-        private List<BluetoothClient> clients;
         private readonly object clientLock = new object();
+        private readonly List<BluetoothClient> clients = new List<BluetoothClient>();
+        private BluetoothListener listener;
+        private CancellationTokenSource cancelToken;
+        private Task serverTask;
+
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -28,25 +30,24 @@ namespace BluetoothChat.Functions
 
         public void Start()
         {
-            CancelToken = new CancellationTokenSource();
-            Listener = new BluetoothListener(Messages.Guid);
-            clients = new List<BluetoothClient>();
+            cancelToken = new CancellationTokenSource();
+            listener = new BluetoothListener(Messages.Guid);
 
-            app.RtbConsole.Text = DisplayFormat.FormatMessage("Starting server...");
+            app.AppendConsoleText(DisplayFormat.FormatMessage("Starting server..."));
             try
             {
-                Listener.Start();
+                listener.Start();
             }
             catch (Exception e)
             {
-                app.RtbConsole.Text = DisplayFormat.FormatMessage($"Unable to start Listener: {e.Message}");
-                app.RtbConsole.AppendText(DisplayFormat.FormatMessage(Messages.ConsolePrompt));
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to start Listener: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.ConsolePrompt));
                 return;
             }
 
-            app.RtbConsole.AppendText(DisplayFormat.FormatMessage("Waiting for clients"));
-            app.RtbConsole.AppendText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
-            _ = Task.Run(() => HostSessionAsync(Listener, CancelToken.Token));
+            app.AppendConsoleText(DisplayFormat.FormatMessage("Waiting for clients"));
+            app.AppendConsoleText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
+            serverTask = Task.Run(() => HostSessionAsync(cancelToken.Token));
             IsRunning = true;
         }
 
@@ -54,13 +55,15 @@ namespace BluetoothChat.Functions
         {
             try
             {
-                CancelToken?.Cancel();
+                cancelToken?.Cancel();
+                cancelToken?.Dispose();
             }
             catch { }
 
             try
             {
-                Listener?.Stop();
+                listener?.Stop();
+                listener?.Dispose();
             }
             catch { }
 
@@ -75,47 +78,26 @@ namespace BluetoothChat.Functions
             {
                 try
                 {
-                    client.Close();
-                }
-                catch { }
-
-                try
-                {
                     client.Dispose();
                 }
                 catch { }
-
-                Listener = null;
-
-                try
-                {
-                    CancelToken?.Dispose();
-                }
-                catch { }
-
-                CancelToken = null;
             }
 
             IsRunning = false;
         }
 
-        private async Task HostSessionAsync(BluetoothListener Listener, CancellationToken ct)
+        private async Task HostSessionAsync(CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
                 BluetoothClient client;
                 try
                 {
-                    client = await Listener.AcceptBluetoothClientAsync();
-                }
-                catch (ObjectDisposedException)
-                {
-                    break;
+                    client = await listener.AcceptBluetoothClientAsync();
                 }
                 catch (Exception e)
                 {
-                    app.BeginInvoke((Action)(() => app.RtbConsole.AppendText(DisplayFormat.FormatMessage($"Server cannot be started: {e.Message}"))));
-                    await Task.Delay(250, ct).ConfigureAwait(false);
+                    app.AppendConsoleText(DisplayFormat.FormatMessage($"Client could not be connected: {e.Message}"));
                     return;
                 }
 
@@ -160,11 +142,9 @@ namespace BluetoothChat.Functions
 
                         if (!string.IsNullOrWhiteSpace(message))
                         {
-                            app.BeginInvoke((Action)(() => app.RtbConsole.AppendText(DisplayFormat.FormatMessage(message))));
-                            await SendMessageToClientsAsync(message, ct);
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                            await SendMessageToClientsAsync(message);
                         }
-
-                        RemoveClient(client);
                         return;
                     }
 
@@ -172,8 +152,8 @@ namespace BluetoothChat.Functions
                     if (!string.IsNullOrWhiteSpace(clientMessage))
                     {
                         stringBuilder.Clear();
-                        app.BeginInvoke((Action)(() => app.RtbConsole.AppendText(DisplayFormat.FormatMessage(clientMessage))));
-                        await SendMessageToClientsAsync(clientMessage, ct).ConfigureAwait(false);
+                        app.AppendConsoleText(DisplayFormat.FormatMessage(clientMessage));
+                        await SendMessageToClientsAsync(clientMessage).ConfigureAwait(false);
                     }
                 }
             }
@@ -183,7 +163,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.RtbConsole.AppendText(DisplayFormat.FormatMessage($"Client error: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Client error: {e.Message}"));
             }
             finally
             {
@@ -191,7 +171,7 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task SendMessageToClientsAsync(string message, CancellationToken ct)
+        public async Task SendMessageToClientsAsync(string message)
         {
             byte[] response;
             try
@@ -200,7 +180,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.RtbConsole.AppendText(DisplayFormat.FormatMessage($"Error translating message to bytes: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error translating message to bytes: {e.Message}"));
                 return;
             }
 
@@ -211,7 +191,7 @@ namespace BluetoothChat.Functions
             {
                 try
                 {
-                    await client.GetStream().WriteAsync(response, 0, response.Length, ct).ConfigureAwait(false);
+                    await client.GetStream().WriteAsync(response, 0, response.Length, cancelToken.Token).ConfigureAwait(false);
                 }
                 catch
                 {

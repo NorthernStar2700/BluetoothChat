@@ -1,10 +1,11 @@
 ﻿using BluetoothChat.Constants;
+using BluetoothChat.Enums;
+using BluetoothChat.Models;
 using BluetoothChat.Utilities;
 using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
 using System.Net.Sockets;
-using System.Runtime.CompilerServices;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -14,11 +15,11 @@ namespace BluetoothChat.Functions
     public class AppClient
     {
         public BluetoothClient Client { get; private set; }
-        public CancellationTokenSource CancelToken { get; private set; }
         public bool IsConnected { get; private set; }
 
         private readonly FrmBluetoothChat app;
         private readonly string bluetoothPrompt = "Enter Bluetooth address: ";
+        private CancellationTokenSource cancelToken;
 
         public AppClient(FrmBluetoothChat app)
         {
@@ -58,30 +59,20 @@ namespace BluetoothChat.Functions
                 app.SetSendButtonEnabled(true);
                 return;
             }
+        }
 
+        public async Task StartReadingMessagesAsync()
+        {
             app.ClearConsoleText();
             app.SetSendButtonEnabled(true);
 
-            CancelToken?.Cancel();
-            CancelToken?.Dispose();
-            CancelToken = new CancellationTokenSource();
+            cancelToken?.Cancel();
+            cancelToken?.Dispose();
+            cancelToken = new CancellationTokenSource();
 
             try
             {
-                string message = $"[{app.DisplayName}] has joined the server";
-                await SendMessageToServer(Client.GetStream(), message);
-            }
-            catch (Exception ex)
-            {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error sending welcome message to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
-                IsConnected = false;
-                return;
-            }
-
-            try
-            {
-                await ReadMessagesFromServer(CancelToken.Token);
+                await ReadMessagesFromServer(cancelToken.Token);
             }
             catch (Exception ex)
             {
@@ -92,14 +83,40 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task SendMessageToServer(NetworkStream stream, string message)
+        public async Task SendJoinMessage()
         {
             try
             {
-                byte[] data = Encoding.UTF8.GetBytes(message);
+                ChatMessage message = new ChatMessage()
+                {
+                    MessageType = MessageType.Join,
+                    SenderName = app.DisplayName,
+                    Message = $"has joined the server"
+                };
 
-                await stream.WriteAsync(data, 0, data.Length);
+                await SendMessageToServer(Client.GetStream(), message);
                 app.ClearInputText();
+            }
+            catch (Exception ex)
+            {
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error sending welcome message to server: {ex.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
+                IsConnected = false;
+                return;
+            }
+        }
+
+        public async Task SendMessageToServer(NetworkStream stream, ChatMessage message)
+        {
+            try
+            {
+                string json = ChatProtocol.Serialize(message);
+                byte[] messageData = Encoding.UTF8.GetBytes(json);
+                byte[] lengthData = BitConverter.GetBytes(messageData.Length);
+
+                // Tell the server the length of the message as well as the message itself
+                await stream.WriteAsync(lengthData, 0, lengthData.Length);
+                await stream.WriteAsync(messageData, 0, messageData.Length);
             }
             catch (Exception e)
             {
@@ -140,13 +157,19 @@ namespace BluetoothChat.Functions
 
         public async Task SendLeaveMessage()
         {
-            if (Client != null && Client.Connected)
+            if (IsConnected)
             {
                 // Attempt to send a message to the server indicating the client is leaving
                 // Disconnect even if the message fails
-                string message = $"[{app.DisplayName}] has left the server{Messages.TerminateMessage}";
                 try
                 {
+                    ChatMessage message = new ChatMessage()
+                    {
+                        MessageType = MessageType.Leave,
+                        SenderName = app.DisplayName,
+                        Message = $"[{app.DisplayName}] has left the server"
+                    };
+
                     await SendMessageToServer(Client.GetStream(), message);
                 }
                 finally
