@@ -170,7 +170,7 @@ namespace BluetoothChat
             }
             else
             {
-                System.Windows.Forms.Application.Exit();
+                Application.Exit();
             }
         }
 

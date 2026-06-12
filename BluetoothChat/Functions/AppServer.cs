@@ -6,11 +6,8 @@ using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Net.Sockets;
-using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace BluetoothChat.Functions
 {
@@ -150,11 +147,11 @@ namespace BluetoothChat.Functions
                     app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
                     break;
                 case MessageType.Join:
-                    message = $">> [{chat.SenderName}] left the server";
+                    message = $">> [{chat.SenderName}] joined the server";
                     app.AppendConsoleText(DisplayFormat.FormatMessage(message));
                     break;
                 case MessageType.Leave:
-                    message = $">> [{chat.SenderName}] joined the server";
+                    message = $">> [{chat.SenderName}] left the server";
                     app.AppendConsoleText(DisplayFormat.FormatMessage(message));
                     break;
                 case MessageType.UsernameChange:
@@ -204,10 +201,12 @@ namespace BluetoothChat.Functions
 
             try
             {
-                client?.Close();
                 client?.Dispose();
             }
-            catch { }
+            catch (ObjectDisposedException) 
+            { 
+
+            }
         }
 
         private BluetoothClient[] GetClients()
