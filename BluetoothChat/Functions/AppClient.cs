@@ -83,6 +83,53 @@ namespace BluetoothChat.Functions
             }
         }
 
+
+        public async Task SendMessageToServer(NetworkStream stream, ChatMessage message)
+        {
+            try
+            {
+                await ChatProtocol.SendAsync(stream, message);
+            }
+            catch (Exception e)
+            {
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to broadcast message: {e.Message}"));
+            }
+        }
+
+        private async Task ReadMessagesFromServer(CancellationToken token)
+        {
+            while (!token.IsCancellationRequested)
+            {
+                try
+                {
+                    if (!IsConnected)
+                        return;
+
+                    ChatMessage response = await ChatProtocol.ReadAsync(Client.GetStream());
+
+                    switch (response.MessageType) 
+                    {
+                        case MessageType.Chat:
+                            string isHost = response.IsHost ? "[HOST] " : string.Empty;
+                            string message = $"{isHost}[{response.SenderName}]: {response.Message}";
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                            break;
+                        case MessageType.Join:
+                        case MessageType.Leave:
+                        case MessageType.UsernameChange:
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            break;
+                    }
+                }
+                catch (Exception)
+                {
+                    app.ResetUI();
+                    Client.Close();
+                    IsConnected = false;
+                }
+            }
+        }
+
         public async Task SendJoinMessage()
         {
             try
@@ -91,7 +138,7 @@ namespace BluetoothChat.Functions
                 {
                     MessageType = MessageType.Join,
                     SenderName = app.DisplayName,
-                    Message = $"has joined the server"
+                    Message = $">> [{app.DisplayName}] has joined the server"
                 };
 
                 await SendMessageToServer(Client.GetStream(), message);
@@ -103,55 +150,6 @@ namespace BluetoothChat.Functions
                 app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
                 IsConnected = false;
                 return;
-            }
-        }
-
-        public async Task SendMessageToServer(NetworkStream stream, ChatMessage message)
-        {
-            try
-            {
-                string json = ChatProtocol.Serialize(message);
-                byte[] messageData = Encoding.UTF8.GetBytes(json);
-                byte[] lengthData = BitConverter.GetBytes(messageData.Length);
-
-                // Tell the server the length of the message as well as the message itself
-                await stream.WriteAsync(lengthData, 0, lengthData.Length);
-                await stream.WriteAsync(messageData, 0, messageData.Length);
-            }
-            catch (Exception e)
-            {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to broadcast message: {e.Message}"));
-            }
-        }
-
-        private async Task ReadMessagesFromServer(CancellationToken token)
-        {
-            byte[] buffer = new byte[512];
-            while (!token.IsCancellationRequested)
-            {
-                try
-                {
-                    if (Client == null || !Client.Connected)
-                        return;
-
-                    int data = await Client.GetStream().ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false);
-
-                    // We stopped receiving data from the server (server shut down)
-                    if (data == 0)
-                    {
-                        Client.Close();
-                        app.ResetUI();
-                        IsConnected = false;
-                    }
-
-                    string response = Encoding.UTF8.GetString(buffer, 0, data);
-                    app.AppendConsoleText(DisplayFormat.FormatMessage(response));
-                }
-                catch (Exception)
-                {
-                    app.ResetUI();
-                    IsConnected = false;
-                }
             }
         }
 
@@ -167,7 +165,7 @@ namespace BluetoothChat.Functions
                     {
                         MessageType = MessageType.Leave,
                         SenderName = app.DisplayName,
-                        Message = $"[{app.DisplayName}] has left the server"
+                        Message = $">> [{app.DisplayName}] has left the server"
                     };
 
                     await SendMessageToServer(Client.GetStream(), message);

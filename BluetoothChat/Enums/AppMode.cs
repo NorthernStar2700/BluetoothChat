@@ -1,6 +1,6 @@
 ﻿namespace BluetoothChat.Constants
 {
-    enum AppMode
+    public enum AppMode
     {
         Inactive,
         Client,

@@ -88,7 +88,7 @@ namespace BluetoothChat
                 if (appMode == AppMode.Host && server.IsRunning)
                 {
                     AppendConsoleText(DisplayFormat.FormatMessage(message.Message));
-                    //await server.SendMessageToClientsAsync(message);
+                    await server.SendMessageToClientsAsync(message);
                 }
             }
         }
@@ -135,9 +135,7 @@ namespace BluetoothChat
 
                         if (server.IsRunning && appMode == AppMode.Host)
                         {
-                            //string message = $"[HOST] [{DisplayName}]: {TxtInput.Text}";
-                            //AppendConsoleText(DisplayFormat.FormatMessage(message));
-                            //await server.SendMessageToClientsAsync(message);
+                            await server.SendMessageToClientsAsync(message);
                         }
                         else if (client.IsConnected && appMode == AppMode.Client)
                         {
@@ -221,6 +219,11 @@ namespace BluetoothChat
         public void SetSendButtonEnabled(bool enabled)
         {
             BeginInvoke((Action)(() => BtnSend.Enabled = enabled));
+        }
+
+        public void SetAppMode(AppMode mode)
+        {
+            appMode = mode;
         }
 
         public string GetInputText()

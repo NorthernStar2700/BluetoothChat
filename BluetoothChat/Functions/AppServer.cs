@@ -1,4 +1,6 @@
 ﻿using BluetoothChat.Constants;
+using BluetoothChat.Enums;
+using BluetoothChat.Models;
 using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
 using System;
@@ -8,6 +10,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace BluetoothChat.Functions
 {
@@ -21,7 +24,6 @@ namespace BluetoothChat.Functions
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
         private Task serverTask;
-
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -40,19 +42,22 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to start Listener: {e.Message}"));
+                app.SetAppMode(AppMode.Inactive);
+                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to start server: {e.Message}"));
                 app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.ConsolePrompt));
                 return;
             }
 
             app.AppendConsoleText(DisplayFormat.FormatMessage("Waiting for clients"));
             app.AppendConsoleText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
-            serverTask = Task.Run(() => HostSessionAsync(cancelToken.Token));
             IsRunning = true;
+            serverTask = Task.Run(() => HostSessionAsync(cancelToken.Token));
         }
 
         public void Stop()
         {
+            IsRunning = false;
+
             try
             {
                 cancelToken?.Cancel();
@@ -82,8 +87,6 @@ namespace BluetoothChat.Functions
                 }
                 catch { }
             }
-
-            IsRunning = false;
         }
 
         private async Task HostSessionAsync(CancellationToken ct)
@@ -94,6 +97,10 @@ namespace BluetoothChat.Functions
                 try
                 {
                     client = await listener.AcceptBluetoothClientAsync();
+                }
+                catch (ObjectDisposedException)
+                {
+                    return;
                 }
                 catch (Exception e)
                 {
@@ -108,56 +115,32 @@ namespace BluetoothChat.Functions
 
         private async Task HandleClientAsync(BluetoothClient client, CancellationToken ct)
         {
-            byte[] buffer = new byte[512];
-            NetworkStream clientStream = client.GetStream();
-            StringBuilder stringBuilder = new StringBuilder();
-
             try
             {
-                while (!ct.IsCancellationRequested && clientStream != null)
+                while (!ct.IsCancellationRequested)
                 {
-                    // Read data from client
-                    int data = await clientStream.ReadAsync(buffer, 0, buffer.Length);
-                    if (data == 0)
-                        break;
+                    ChatMessage chat = await ChatProtocol.ReadAsync(client.GetStream());
 
-                    stringBuilder.Append(Encoding.UTF8.GetString(buffer, 0, data));
-
-                    // Handling terminate flag
-                    while (true)
+                    switch (chat.MessageType)
                     {
-                        string text = stringBuilder.ToString();
-                        int index = text.IndexOf(Messages.TerminateMessage);
-                        if (index == -1)
+                        case MessageType.Chat:
+                            app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
+                            await SendMessageToClientsAsync(chat);
                             break;
-
-                        // Get the message before the terminate flag
-                        string message = text.Substring(0, index);
-
-                        // Clear what is in the builder (the message itself)
-                        stringBuilder.Clear();
-
-                        // Append the flag to the builder
-                        stringBuilder.Append(text.Substring(index, Messages.TerminateMessage.Length));
-
-                        if (!string.IsNullOrWhiteSpace(message))
-                        {
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(message));
-                            await SendMessageToClientsAsync(message);
-                        }
-                        return;
-                    }
-
-                    string clientMessage = stringBuilder.ToString();
-                    if (!string.IsNullOrWhiteSpace(clientMessage))
-                    {
-                        stringBuilder.Clear();
-                        app.AppendConsoleText(DisplayFormat.FormatMessage(clientMessage));
-                        await SendMessageToClientsAsync(clientMessage).ConfigureAwait(false);
+                        case MessageType.Join:
+                        case MessageType.Leave:
+                        case MessageType.UsernameChange:
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(chat.Message));
+                            await SendMessageToClientsAsync(chat);
+                            break;
                     }
                 }
             }
             catch (OperationCanceledException)
+            {
+
+            }
+            catch (ObjectDisposedException)
             {
 
             }
@@ -171,17 +154,18 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task SendMessageToClientsAsync(string message)
+        public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
-            byte[] response;
-            try
+            switch (chat.MessageType)
             {
-                response = Encoding.UTF8.GetBytes(message);
-            }
-            catch (Exception e)
-            {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error translating message to bytes: {e.Message}"));
-                return;
+                case MessageType.Chat:
+                    app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
+                    break;
+                case MessageType.Join:
+                case MessageType.Leave:
+                case MessageType.UsernameChange:
+                    app.AppendConsoleText(DisplayFormat.FormatMessage(chat.Message));
+                    break;
             }
 
             BluetoothClient[] clientCopy = GetClients();
@@ -191,12 +175,9 @@ namespace BluetoothChat.Functions
             {
                 try
                 {
-                    await client.GetStream().WriteAsync(response, 0, response.Length, cancelToken.Token).ConfigureAwait(false);
+                    await ChatProtocol.SendAsync(client.GetStream(), chat);
                 }
-                catch
-                {
-                    RemoveClient(client);
-                }
+                catch {}
             });
 
             try
