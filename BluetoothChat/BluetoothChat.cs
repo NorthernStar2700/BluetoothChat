@@ -62,10 +62,14 @@ namespace BluetoothChat
                     return;
                 }
 
-                string newUsername = dialog.NewUsername;
+                string newUsername = dialog.NewUsername.Trim();
 
                 if (!string.IsNullOrWhiteSpace(newUsername))
                 {
+                    if (newUsername.ToUpperInvariant().IndexOf("[HOST]") != -1)
+                    {
+                        newUsername = newUsername.Replace("[HOST]", string.Empty);
+                    }
                     CurrentUsernameToolStripMenuItem.Text = username + newUsername;
                     Properties.Settings.Default.CurrentUsername = newUsername;
                     DisplayName = newUsername;
@@ -80,13 +84,12 @@ namespace BluetoothChat
 
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
-
                     await client.SendMessageToServer(client.Client.GetStream(), message);
                     ClearInputText();
                 }
-
-                if (appMode == AppMode.Host && server.IsRunning)
+                else if (appMode == AppMode.Host && server.IsRunning)
                 {
+                    message.IsHost = true;
                     AppendConsoleText(DisplayFormat.FormatMessage(message.Message));
                     await server.SendMessageToClientsAsync(message);
                 }
@@ -133,13 +136,14 @@ namespace BluetoothChat
                             Message = TxtInput.Text.Trim()
                         };
 
-                        if (server.IsRunning && appMode == AppMode.Host)
-                        {
-                            await server.SendMessageToClientsAsync(message);
-                        }
-                        else if (client.IsConnected && appMode == AppMode.Client)
+                        if (client.IsConnected && appMode == AppMode.Client)
                         {
                             await client.SendMessageToServer(client.Client.GetStream(), message);
+                        }
+                        else if (server.IsRunning && appMode == AppMode.Host)
+                        {
+                            message.IsHost = true;
+                            await server.SendMessageToClientsAsync(message);
                         }
                     }
                     ClearInputText();

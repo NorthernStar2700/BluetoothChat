@@ -138,7 +138,6 @@ namespace BluetoothChat.Functions
                 {
                     MessageType = MessageType.Join,
                     SenderName = app.DisplayName,
-                    Message = $">> [{app.DisplayName}] has joined the server"
                 };
 
                 await SendMessageToServer(Client.GetStream(), message);
@@ -164,8 +163,7 @@ namespace BluetoothChat.Functions
                     ChatMessage message = new ChatMessage()
                     {
                         MessageType = MessageType.Leave,
-                        SenderName = app.DisplayName,
-                        Message = $">> [{app.DisplayName}] has left the server"
+                        SenderName = app.DisplayName
                     };
 
                     await SendMessageToServer(Client.GetStream(), message);

@@ -120,27 +120,14 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(client.GetStream());
-
-                    switch (chat.MessageType)
-                    {
-                        case MessageType.Chat:
-                            app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
-                            await SendMessageToClientsAsync(chat);
-                            break;
-                        case MessageType.Join:
-                        case MessageType.Leave:
-                        case MessageType.UsernameChange:
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(chat.Message));
-                            await SendMessageToClientsAsync(chat);
-                            break;
-                    }
+                    await SendMessageToClientsAsync(chat);
                 }
             }
             catch (OperationCanceledException)
             {
 
             }
-            catch (ObjectDisposedException)
+            catch (InvalidOperationException)
             {
 
             }
@@ -156,16 +143,29 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
+            string message = string.Empty;
             switch (chat.MessageType)
             {
                 case MessageType.Chat:
                     app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
                     break;
                 case MessageType.Join:
+                    message = $">> [{chat.SenderName}] left the server";
+                    app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                    break;
                 case MessageType.Leave:
+                    message = $">> [{chat.SenderName}] joined the server";
+                    app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                    break;
                 case MessageType.UsernameChange:
                     app.AppendConsoleText(DisplayFormat.FormatMessage(chat.Message));
                     break;
+            }
+
+            // Clients send the indicator, server sends the message to all other clients
+            if (!string.IsNullOrWhiteSpace(message))
+            {
+                chat.Message = message;
             }
 
             BluetoothClient[] clientCopy = GetClients();
