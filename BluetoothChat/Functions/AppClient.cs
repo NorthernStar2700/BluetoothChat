@@ -52,10 +52,10 @@ namespace BluetoothChat.Functions
             catch (Exception ex)
             {
                 Client.Dispose();
-                IsConnected = false;
                 app.AppendConsoleText(DisplayFormat.FormatMessage($"Error connecting to server: {ex.Message}"));
                 app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
                 app.SetSendButtonEnabled(true);
+                app.SetConnectedCheckbox(false);
                 return;
             }
         }
@@ -64,6 +64,7 @@ namespace BluetoothChat.Functions
         {
             app.ClearConsoleText();
             app.SetSendButtonEnabled(true);
+            app.SetConnectedCheckbox(true);
 
             cancelToken?.Cancel();
             cancelToken?.Dispose();
@@ -83,11 +84,16 @@ namespace BluetoothChat.Functions
         }
 
 
-        public async Task SendMessageToServer(NetworkStream stream, ChatMessage message)
+        public async Task SendMessageToServer(ChatMessage message)
         {
+            if (!IsConnected || Client == null)
+            {
+                return;
+            }
+
             try
             {
-                await ChatProtocol.SendAsync(stream, message);
+                await ChatProtocol.SendAsync(Client.GetStream(), message);
             }
             catch (Exception e)
             {
@@ -139,7 +145,7 @@ namespace BluetoothChat.Functions
                     SenderName = app.DisplayName,
                 };
 
-                await SendMessageToServer(Client.GetStream(), message);
+                await SendMessageToServer(message);
                 app.ClearInputText();
             }
             catch (Exception ex)
@@ -165,7 +171,7 @@ namespace BluetoothChat.Functions
                         SenderName = app.DisplayName
                     };
 
-                    await SendMessageToServer(Client.GetStream(), message);
+                    await SendMessageToServer(message);
                 }
                 finally
                 {

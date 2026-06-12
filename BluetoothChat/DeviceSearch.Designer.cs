@@ -37,29 +37,27 @@
             // LblSearch
             // 
             this.LblSearch.AutoSize = true;
-            this.LblSearch.Location = new System.Drawing.Point(16, 10);
-            this.LblSearch.Margin = new System.Windows.Forms.Padding(4, 0, 4, 0);
+            this.LblSearch.Location = new System.Drawing.Point(12, 8);
             this.LblSearch.Name = "LblSearch";
-            this.LblSearch.Size = new System.Drawing.Size(77, 16);
+            this.LblSearch.Size = new System.Drawing.Size(64, 13);
             this.LblSearch.TabIndex = 0;
             this.LblSearch.Text = "Searching...";
             // 
             // LbxDevices
             // 
             this.LbxDevices.FormattingEnabled = true;
-            this.LbxDevices.ItemHeight = 16;
-            this.LbxDevices.Location = new System.Drawing.Point(19, 36);
-            this.LbxDevices.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.LbxDevices.HorizontalScrollbar = true;
+            this.LbxDevices.Location = new System.Drawing.Point(14, 29);
             this.LbxDevices.Name = "LbxDevices";
-            this.LbxDevices.Size = new System.Drawing.Size(483, 260);
+            this.LbxDevices.Size = new System.Drawing.Size(363, 212);
             this.LbxDevices.TabIndex = 1;
+            this.LbxDevices.DoubleClick += new System.EventHandler(this.LbxDevices_DoubleClick);
             // 
             // BtnRestart
             // 
-            this.BtnRestart.Location = new System.Drawing.Point(156, 306);
-            this.BtnRestart.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.BtnRestart.Location = new System.Drawing.Point(117, 249);
             this.BtnRestart.Name = "BtnRestart";
-            this.BtnRestart.Size = new System.Drawing.Size(100, 28);
+            this.BtnRestart.Size = new System.Drawing.Size(75, 23);
             this.BtnRestart.TabIndex = 2;
             this.BtnRestart.Text = "Restart";
             this.BtnRestart.UseVisualStyleBackColor = true;
@@ -67,10 +65,9 @@
             // 
             // BtnCopy
             // 
-            this.BtnCopy.Location = new System.Drawing.Point(264, 306);
-            this.BtnCopy.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.BtnCopy.Location = new System.Drawing.Point(198, 249);
             this.BtnCopy.Name = "BtnCopy";
-            this.BtnCopy.Size = new System.Drawing.Size(100, 28);
+            this.BtnCopy.Size = new System.Drawing.Size(75, 23);
             this.BtnCopy.TabIndex = 3;
             this.BtnCopy.Text = "Copy";
             this.BtnCopy.UseVisualStyleBackColor = true;
@@ -78,21 +75,19 @@
             // 
             // FrmDeviceSearch
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(517, 336);
+            this.ClientSize = new System.Drawing.Size(389, 280);
             this.Controls.Add(this.BtnCopy);
             this.Controls.Add(this.BtnRestart);
             this.Controls.Add(this.LbxDevices);
             this.Controls.Add(this.LblSearch);
-            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedSingle;
-            this.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
+            this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(535, 383);
-            this.MinimumSize = new System.Drawing.Size(535, 383);
+            this.MaximumSize = new System.Drawing.Size(405, 319);
+            this.MinimumSize = new System.Drawing.Size(405, 319);
             this.Name = "FrmDeviceSearch";
             this.Text = "Device Searcher";
-            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmDeviceSearch_FormClosing);
             this.Load += new System.EventHandler(this.FrmDeviceSearch_Load);
             this.ResumeLayout(false);
             this.PerformLayout();

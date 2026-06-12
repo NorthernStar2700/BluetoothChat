@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
@@ -8,8 +9,6 @@ namespace BluetoothChat
 {
     public partial class FrmDeviceSearch : Form
     {
-        private readonly BluetoothClient client;
-
         private const string searchText = "Searching...";
         private const string searchCompleteText = "Search complete";
         private const string searchErrorText = "Error finding devices. Try scanning again";
@@ -17,7 +16,6 @@ namespace BluetoothChat
         public FrmDeviceSearch()
         {
             InitializeComponent();
-            client = new BluetoothClient();
         }
 
         private void FrmDeviceSearch_Load(object sender, EventArgs e)
@@ -25,9 +23,9 @@ namespace BluetoothChat
             SearchForDevices();
         }
 
-        private void FrmDeviceSearch_FormClosing(object sender, FormClosingEventArgs e)
+        private void LbxDevices_DoubleClick(object sender, EventArgs e)
         {
-            client.Dispose();
+            BtnCopy.PerformClick();
         }
 
         private void BtnRestart_Click(object sender, EventArgs e)
@@ -46,6 +44,11 @@ namespace BluetoothChat
 
             string[] deviceInfo = 
                 ((string) LbxDevices.Items[LbxDevices.SelectedIndex]).Split(new string[] { " | " }, StringSplitOptions.None);
+            if (deviceInfo.Length != 2)
+            {
+                return;
+            }
+
             string deviceAddress = deviceInfo[1];
             Clipboard.SetText(deviceAddress);
             MessageBox.Show($"Copied device address {deviceAddress} to clipboard",
@@ -60,16 +63,28 @@ namespace BluetoothChat
 
             try
             {
-                await Task.Run(() =>
+                List<BluetoothDeviceInfo> devices = await Task.Run(() =>
                 {
-                    foreach (BluetoothDeviceInfo device in client.DiscoverDevices().ToList()) {
-                        string formattedEntry = $"{device.DeviceName} | {device.DeviceAddress}";
-                        BeginInvoke((Action)(() => LbxDevices.Items.Add(formattedEntry)));
+                    using (BluetoothClient client = new BluetoothClient())
+                    {
+                        return client.DiscoverDevices().ToList();
                     }
                 });
+
+                if (Disposing)
+                {
+                    return;
+                }
+
+                foreach (BluetoothDeviceInfo device in devices)
+                {
+                    string formattedEntry = $"{device.DeviceName} | {device.DeviceAddress}";
+                    BeginInvoke((Action)(() => LbxDevices.Items.Add(formattedEntry)));
+                }
+
                 LblSearch.Text = searchCompleteText;
             }
-            catch
+            catch (Exception)
             {
                 LblSearch.Text = searchErrorText;
             }

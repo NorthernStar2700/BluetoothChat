@@ -5,7 +5,9 @@ using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -47,27 +49,35 @@ namespace BluetoothChat.Functions
 
             app.AppendConsoleText(DisplayFormat.FormatMessage("Waiting for clients"));
             app.AppendConsoleText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
+            app.SetConnectedCheckbox(true);
             IsRunning = true;
-            serverTask = Task.Run(() => HostSessionAsync(cancelToken.Token));
+            serverTask = Task.Run(() => HostSession(cancelToken.Token));
         }
 
         public void Stop()
         {
             IsRunning = false;
+            app.SetConnectedCheckbox(false);
 
             try
             {
                 cancelToken?.Cancel();
                 cancelToken?.Dispose();
             }
-            catch { }
+            catch (Exception e) 
+            {
+                app.AppendConsoleText($"{e.Message}");
+            }
 
             try
             {
                 listener?.Stop();
                 listener?.Dispose();
             }
-            catch { }
+            catch (Exception e) 
+            { 
+                app.AppendConsoleText($"{e.Message}"); 
+            }
 
             BluetoothClient[] clientCopy;
             lock (clientLock)
@@ -82,20 +92,38 @@ namespace BluetoothChat.Functions
                 {
                     client.Dispose();
                 }
-                catch { }
+                catch (Exception e) 
+                {
+                    app.AppendConsoleText($"{e.Message}");
+                }
             }
         }
 
-        private async Task HostSessionAsync(CancellationToken ct)
+        private async Task HostSession(CancellationToken ct)
         {
             while (!ct.IsCancellationRequested)
             {
                 BluetoothClient client;
                 try
                 {
-                    client = await listener.AcceptBluetoothClientAsync();
+                    client = await Task.Run(() => listener.AcceptBluetoothClient());
+
+                    NetworkStream stream = client.GetStream();
+
+                    AddClient(client);
+                    _ = Task.Run(() => HandleClientAsync(client, stream, ct));
+
+                }
+                catch (IOException e) when (e.InnerException is SocketException socketEx && 
+                    socketEx.SocketErrorCode == SocketError.Interrupted)
+                {
+                    return;
                 }
                 catch (ObjectDisposedException)
+                {
+                    return;
+                }
+                catch (SocketException e) when (e.SocketErrorCode == SocketError.Interrupted)
                 {
                     return;
                 }
@@ -104,19 +132,16 @@ namespace BluetoothChat.Functions
                     app.AppendConsoleText(DisplayFormat.FormatMessage($"Client could not be connected: {e.Message}"));
                     return;
                 }
-
-                AddClient(client);
-                _ = Task.Run(() => HandleClientAsync(client, ct));
             }
         }
 
-        private async Task HandleClientAsync(BluetoothClient client, CancellationToken ct)
+        private async Task HandleClientAsync(BluetoothClient client, NetworkStream stream, CancellationToken ct)
         {
             try
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    ChatMessage chat = await ChatProtocol.ReadAsync(client.GetStream());
+                    ChatMessage chat = await ChatProtocol.ReadAsync(stream);
                     await SendMessageToClientsAsync(chat);
                 }
             }
@@ -124,7 +149,11 @@ namespace BluetoothChat.Functions
             {
 
             }
-            catch (InvalidOperationException)
+            catch (IOException)
+            {
+
+            }
+            catch (SocketException)
             {
 
             }
@@ -144,7 +173,8 @@ namespace BluetoothChat.Functions
             switch (chat.MessageType)
             {
                 case MessageType.Chat:
-                    app.AppendConsoleText(DisplayFormat.FormatMessage($"[{chat.SenderName}]: {chat.Message}"));
+                    string isHost = chat.IsHost ? "[HOST] " : string.Empty;
+                    app.AppendConsoleText(DisplayFormat.FormatMessage($"{isHost}[{chat.SenderName}]: {chat.Message}"));
                     break;
                 case MessageType.Join:
                     message = $">> [{chat.SenderName}] joined the server";
@@ -174,14 +204,20 @@ namespace BluetoothChat.Functions
                 {
                     await ChatProtocol.SendAsync(client.GetStream(), chat);
                 }
-                catch {}
+                catch (Exception e)
+                {
+                    app.AppendConsoleText($"{e.Message}");
+                }
             });
 
             try
             {
                 await Task.WhenAll(tasks).ConfigureAwait(false);
             }
-            catch { }
+            catch (Exception e)
+            {
+                app.AppendConsoleText($"{e.Message}");
+            }
         }
 
         private void AddClient(BluetoothClient client)
@@ -203,8 +239,8 @@ namespace BluetoothChat.Functions
             {
                 client?.Dispose();
             }
-            catch (ObjectDisposedException) 
-            { 
+            catch (Exception)
+            {
 
             }
         }

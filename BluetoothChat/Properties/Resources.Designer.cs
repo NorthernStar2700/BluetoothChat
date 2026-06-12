@@ -59,14 +59,5 @@ namespace BluetoothChat.Properties {
                 resourceCulture = value;
             }
         }
-        
-        /// <summary>
-        ///   Looks up a localized string similar to .
-        /// </summary>
-        internal static string CurrentUsername {
-            get {
-                return ResourceManager.GetString("CurrentUsername", resourceCulture);
-            }
-        }
     }
 }

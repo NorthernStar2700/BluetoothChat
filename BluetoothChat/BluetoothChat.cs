@@ -1,10 +1,11 @@
-﻿using BluetoothChat.Constants;
+﻿using System;
+using System.IO;
+using System.Windows.Forms;
+using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Functions;
 using BluetoothChat.Models;
 using BluetoothChat.Utilities;
-using System;
-using System.Windows.Forms;
 
 namespace BluetoothChat
 {
@@ -47,8 +48,10 @@ namespace BluetoothChat
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmDeviceSearch deviceSearch = new FrmDeviceSearch();
-            deviceSearch.Show();
+            using (FrmDeviceSearch deviceSearch = new FrmDeviceSearch())
+            {
+                DialogResult result = deviceSearch.ShowDialog();
+            }
         }
 
         private async void ChangeToolStripMenuItem_Click(object sender, EventArgs e)
@@ -84,7 +87,7 @@ namespace BluetoothChat
 
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
-                    await client.SendMessageToServer(client.Client.GetStream(), message);
+                    await client.SendMessageToServer(message);
                     ClearInputText();
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
@@ -138,7 +141,7 @@ namespace BluetoothChat
 
                         if (client.IsConnected && appMode == AppMode.Client)
                         {
-                            await client.SendMessageToServer(client.Client.GetStream(), message);
+                            await client.SendMessageToServer(message);
                         }
                         else if (server.IsRunning && appMode == AppMode.Host)
                         {
@@ -197,32 +200,39 @@ namespace BluetoothChat
         public void ResetUI()
         {
             appMode = AppMode.Inactive;
-            BeginInvoke((Action)(() =>
+            RunActionOnUI(() =>
             {
                 ToggleServerTabs();
                 RtbConsole.Clear();
                 RtbConsole.Text = Messages.ConsolePrompt;
-            }));
+                BtnSend.Enabled = true;
+                ChkConnected.Checked = false;
+            });
         }
 
         public void AppendConsoleText(string text)
         {
-            BeginInvoke((Action)(() => RtbConsole.Text += text ));
+            RunActionOnUI(() => RtbConsole.AppendText(text));
         }
 
         public void ClearConsoleText()
         {
-            BeginInvoke((Action)(() => RtbConsole.Clear() ));
+            RunActionOnUI(() => RtbConsole.Clear());
         }
 
         public void ClearInputText()
         {
-            BeginInvoke((Action)(() => TxtInput.Clear()));
+            RunActionOnUI(() => TxtInput.Clear());
         }
 
         public void SetSendButtonEnabled(bool enabled)
         {
-            BeginInvoke((Action)(() => BtnSend.Enabled = enabled));
+            RunActionOnUI(() => BtnSend.Enabled = enabled);
+        }
+
+        public void SetConnectedCheckbox(bool enabled)
+        {
+            RunActionOnUI(() => ChkConnected.Checked = enabled);
         }
 
         public void SetAppMode(AppMode mode)
@@ -233,6 +243,34 @@ namespace BluetoothChat
         public string GetInputText()
         {
             return TxtInput.Text;
+        }
+
+        private void RunActionOnUI(Action action)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+            {
+                return;
+            }
+
+            try
+            {
+                if (InvokeRequired)
+                {
+                    BeginInvoke(action);
+                }
+                else
+                {
+                    action();
+                }
+            }
+            catch (IOException)
+            {
+
+            }
+            catch (ObjectDisposedException)
+            {
+
+            }
         }
     }
 }
