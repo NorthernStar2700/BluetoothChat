@@ -1,4 +1,4 @@
-﻿namespace BluetoothChat
+﻿namespace BluetoothChat.UI
 {
     partial class FrmDeviceSearch
     {
@@ -37,7 +37,7 @@
             // LblSearch
             // 
             this.LblSearch.AutoSize = true;
-            this.LblSearch.Location = new System.Drawing.Point(12, 8);
+            this.LblSearch.Location = new System.Drawing.Point(10, 8);
             this.LblSearch.Name = "LblSearch";
             this.LblSearch.Size = new System.Drawing.Size(64, 13);
             this.LblSearch.TabIndex = 0;
@@ -47,7 +47,7 @@
             // 
             this.LbxDevices.FormattingEnabled = true;
             this.LbxDevices.HorizontalScrollbar = true;
-            this.LbxDevices.Location = new System.Drawing.Point(14, 29);
+            this.LbxDevices.Location = new System.Drawing.Point(12, 29);
             this.LbxDevices.Name = "LbxDevices";
             this.LbxDevices.Size = new System.Drawing.Size(363, 212);
             this.LbxDevices.TabIndex = 1;
@@ -55,7 +55,7 @@
             // 
             // BtnRestart
             // 
-            this.BtnRestart.Location = new System.Drawing.Point(117, 249);
+            this.BtnRestart.Location = new System.Drawing.Point(113, 249);
             this.BtnRestart.Name = "BtnRestart";
             this.BtnRestart.Size = new System.Drawing.Size(75, 23);
             this.BtnRestart.TabIndex = 2;
@@ -65,7 +65,7 @@
             // 
             // BtnCopy
             // 
-            this.BtnCopy.Location = new System.Drawing.Point(198, 249);
+            this.BtnCopy.Location = new System.Drawing.Point(194, 249);
             this.BtnCopy.Name = "BtnCopy";
             this.BtnCopy.Size = new System.Drawing.Size(75, 23);
             this.BtnCopy.TabIndex = 3;
@@ -88,6 +88,7 @@
             this.MinimumSize = new System.Drawing.Size(405, 319);
             this.Name = "FrmDeviceSearch";
             this.Text = "Device Searcher";
+            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FrmDeviceSearch_FormClosed);
             this.Load += new System.EventHandler(this.FrmDeviceSearch_Load);
             this.ResumeLayout(false);
             this.PerformLayout();

@@ -58,10 +58,10 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
-    <Compile Include="BluetoothChat.cs">
+    <Compile Include="UI\BluetoothChat.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="BluetoothChat.Designer.cs">
+    <Compile Include="UI\BluetoothChat.Designer.cs">
       <DependentUpon>BluetoothChat.cs</DependentUpon>
     </Compile>
     <Compile Include="Constants\Messages.cs" />
@@ -71,25 +71,34 @@
     <Compile Include="Functions\AppServer.cs" />
     <Compile Include="Models\ChatMessage.cs" />
     <Compile Include="Models\ChatProtocol.cs" />
-    <Compile Include="UsernameDialog.cs">
+    <Compile Include="UI\DeviceHistory.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="UsernameDialog.Designer.cs">
+    <Compile Include="UI\DeviceHistory.Designer.cs">
+      <DependentUpon>DeviceHistory.cs</DependentUpon>
+    </Compile>
+    <Compile Include="UI\UsernameDialog.cs">
+      <SubType>Form</SubType>
+    </Compile>
+    <Compile Include="UI\UsernameDialog.Designer.cs">
       <DependentUpon>UsernameDialog.cs</DependentUpon>
     </Compile>
-    <Compile Include="DeviceSearch.cs">
+    <Compile Include="UI\DeviceSearch.cs">
       <SubType>Form</SubType>
     </Compile>
-    <Compile Include="DeviceSearch.Designer.cs">
+    <Compile Include="UI\DeviceSearch.Designer.cs">
       <DependentUpon>DeviceSearch.cs</DependentUpon>
     </Compile>
     <Compile Include="Program.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="Utilities\DisplayFormat.cs" />
-    <EmbeddedResource Include="BluetoothChat.resx">
+    <EmbeddedResource Include="UI\BluetoothChat.resx">
       <DependentUpon>BluetoothChat.cs</DependentUpon>
     </EmbeddedResource>
-    <EmbeddedResource Include="DeviceSearch.resx">
+    <EmbeddedResource Include="UI\DeviceHistory.resx">
+      <DependentUpon>DeviceHistory.cs</DependentUpon>
+    </EmbeddedResource>
+    <EmbeddedResource Include="UI\DeviceSearch.resx">
       <DependentUpon>DeviceSearch.cs</DependentUpon>
     </EmbeddedResource>
     <EmbeddedResource Include="Properties\Resources.resx">
@@ -102,7 +111,7 @@
       <DependentUpon>Resources.resx</DependentUpon>
       <DesignTime>True</DesignTime>
     </Compile>
-    <EmbeddedResource Include="UsernameDialog.resx">
+    <EmbeddedResource Include="UI\UsernameDialog.resx">
       <DependentUpon>UsernameDialog.cs</DependentUpon>
     </EmbeddedResource>
     <None Include="packages.config" />

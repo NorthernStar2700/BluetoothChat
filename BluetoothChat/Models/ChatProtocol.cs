@@ -6,7 +6,6 @@ using System.Text;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 
-
 namespace BluetoothChat.Models
 {
     public static class ChatProtocol
@@ -51,6 +50,7 @@ namespace BluetoothChat.Models
 
             while (totalRead < length)
             {
+                // This ReadInternalAsync is used for Mono compatability. We are on another thread
                 int bytesRead = await ReadInternalAsync(stream, buffer, totalRead, length - totalRead);
 
                 if (bytesRead == 0)
@@ -78,17 +78,18 @@ namespace BluetoothChat.Models
 
         private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count)
         {
-            return Task.Run(() => stream.Write(buffer, offset, count));
+            try
+            {
+                return Task.Run(() => stream.Write(buffer, offset, count));
+            }
+            catch (Exception)
+            {
+                return Task.FromResult(new Task(null));
+            }
         }
 
-        private static string Serialize(ChatMessage message)
-        {
-            return JsonConvert.SerializeObject(message);
-        }
+        private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
 
-        private static ChatMessage Deserialize(string json)
-        {
-            return (ChatMessage)JsonConvert.DeserializeObject(json, typeof(ChatMessage));
-        }
+        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
     }
 }

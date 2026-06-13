@@ -34,5 +34,17 @@ namespace BluetoothChat.Properties {
                 this["CurrentUsername"] = value;
             }
         }
+        
+        [global::System.Configuration.UserScopedSettingAttribute()]
+        [global::System.Diagnostics.DebuggerNonUserCodeAttribute()]
+        [global::System.Configuration.DefaultSettingValueAttribute("")]
+        public string DeviceHistory {
+            get {
+                return ((string)(this["DeviceHistory"]));
+            }
+            set {
+                this["DeviceHistory"] = value;
+            }
+        }
     }
 }

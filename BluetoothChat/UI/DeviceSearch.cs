@@ -3,19 +3,22 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using BluetoothChat.Properties;
 using InTheHand.Net.Sockets;
 
-namespace BluetoothChat
+namespace BluetoothChat.UI
 {
     public partial class FrmDeviceSearch : Form
     {
         private const string searchText = "Searching...";
         private const string searchCompleteText = "Search complete";
         private const string searchErrorText = "Error finding devices. Try scanning again";
+        private string deviceList;
 
-        public FrmDeviceSearch()
+        public FrmDeviceSearch(string deviceList)
         {
             InitializeComponent();
+            this.deviceList = deviceList;
         }
 
         private void FrmDeviceSearch_Load(object sender, EventArgs e)
@@ -23,9 +26,10 @@ namespace BluetoothChat
             SearchForDevices();
         }
 
-        private void LbxDevices_DoubleClick(object sender, EventArgs e)
+        private void FrmDeviceSearch_FormClosed(object sender, FormClosedEventArgs e)
         {
-            BtnCopy.PerformClick();
+            Settings.Default.DeviceHistory = deviceList;
+            Settings.Default.Save();
         }
 
         private void BtnRestart_Click(object sender, EventArgs e)
@@ -42,8 +46,11 @@ namespace BluetoothChat
                 return;
             }
 
+            // Format: (Device Name) | (Address)
+            string device = (string)LbxDevices.Items[LbxDevices.SelectedIndex];
             string[] deviceInfo = 
-                ((string) LbxDevices.Items[LbxDevices.SelectedIndex]).Split(new string[] { " | " }, StringSplitOptions.None);
+                device.Split(new string[] { " | " }, StringSplitOptions.None);
+
             if (deviceInfo.Length != 2)
             {
                 return;
@@ -55,6 +62,20 @@ namespace BluetoothChat
                 "Copy successful",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
+
+            // Save to history if entry does not exist
+            deviceList = Settings.Default.DeviceHistory;
+            if (!deviceList.Contains(device))
+            {
+                deviceList += $"{device},";
+                Settings.Default.DeviceHistory = deviceList;
+                Settings.Default.Save();
+            }
+        }
+
+        private void LbxDevices_DoubleClick(object sender, EventArgs e)
+        {
+            BtnCopy.PerformClick();
         }
 
         private async void SearchForDevices()
@@ -78,6 +99,7 @@ namespace BluetoothChat
 
                 foreach (BluetoothDeviceInfo device in devices)
                 {
+                    string hasDeviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
                     string formattedEntry = $"{device.DeviceName} | {device.DeviceAddress}";
                     BeginInvoke((Action)(() => LbxDevices.Items.Add(formattedEntry)));
                 }

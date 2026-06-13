@@ -1,6 +1,7 @@
 ﻿using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Models;
+using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
 using System;

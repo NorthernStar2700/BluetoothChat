@@ -5,9 +5,9 @@ using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Functions;
 using BluetoothChat.Models;
-using BluetoothChat.Utilities;
+using BluetoothChat.Properties;
 
-namespace BluetoothChat
+namespace BluetoothChat.UI
 {
     public partial class FrmBluetoothChat : Form
     {
@@ -16,7 +16,6 @@ namespace BluetoothChat
         private AppMode appMode;
         private readonly AppClient client;
         private readonly AppServer server;
-        private readonly string bluetoothPrompt = "Enter Bluetooth address: ";
         private readonly string username = "Current Username: ";
 
         public FrmBluetoothChat()
@@ -34,24 +33,28 @@ namespace BluetoothChat
             if (string.IsNullOrWhiteSpace(DisplayName))
             {
                 DisplayName = Environment.MachineName;
-                Properties.Settings.Default.CurrentUsername = DisplayName;
+                Settings.Default.CurrentUsername = DisplayName;
             }
 
-            DisplayName = Properties.Settings.Default.CurrentUsername;
+            DisplayName = Settings.Default.CurrentUsername;
             CurrentUsernameToolStripMenuItem.Text = username + DisplayName;
         }
 
         private void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
         {
-            Properties.Settings.Default.Save();
+            Settings.Default.Save();
         }
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            using (FrmDeviceSearch deviceSearch = new FrmDeviceSearch())
-            {
-                DialogResult result = deviceSearch.ShowDialog();
-            }
+            FrmDeviceSearch deviceSearch = new FrmDeviceSearch(Settings.Default.DeviceHistory);
+            deviceSearch.Show();
+        }
+
+        private void HistoryToolStripMenuItem_Click(object sender, EventArgs e)
+        {
+            FrmDeviceHistory deviceHistory = new FrmDeviceHistory(Settings.Default.DeviceHistory);
+            deviceHistory.Show();
         }
 
         private async void ChangeToolStripMenuItem_Click(object sender, EventArgs e)
@@ -74,10 +77,11 @@ namespace BluetoothChat
                         newUsername = newUsername.Replace("[HOST]", string.Empty);
                     }
                     CurrentUsernameToolStripMenuItem.Text = username + newUsername;
-                    Properties.Settings.Default.CurrentUsername = newUsername;
+                    Settings.Default.CurrentUsername = newUsername;
                     DisplayName = newUsername;
                 }
 
+                // Send a chat message when users change their usernames
                 ChatMessage message = new ChatMessage()
                 {
                     MessageType = MessageType.UsernameChange,
@@ -88,12 +92,10 @@ namespace BluetoothChat
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
                     await client.SendMessageToServer(message);
-                    ClearInputText();
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
                     message.IsHost = true;
-                    AppendConsoleText(DisplayFormat.FormatMessage(message.Message));
                     await server.SendMessageToClientsAsync(message);
                 }
             }
@@ -121,6 +123,7 @@ namespace BluetoothChat
                 }
                 else
                 {
+                    // Try to connect, if connected read messages
                     if (!client.IsConnected && appMode == AppMode.Client)
                     {
                         await client.AttemptConnection();
@@ -132,6 +135,7 @@ namespace BluetoothChat
                     }
                     else
                     {
+                        // Create a chat message and pass it to all clients
                         ChatMessage message = new ChatMessage()
                         {
                             MessageType = MessageType.Chat,
@@ -181,7 +185,7 @@ namespace BluetoothChat
         {
             appMode = AppMode.Client;
             RtbConsole.Clear();
-            RtbConsole.Text = bluetoothPrompt;
+            RtbConsole.Text = Messages.BluetoothPrompt;
         }
 
         private void CreateServerPrompt()

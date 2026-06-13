@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Windows.Forms;
 
-namespace BluetoothChat
+namespace BluetoothChat.UI
 {
     public partial class FrmUsernameDialog : Form
     {

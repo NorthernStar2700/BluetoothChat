@@ -1,11 +1,11 @@
 ﻿using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Models;
+using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,7 +17,6 @@ namespace BluetoothChat.Functions
         public bool IsConnected { get; private set; }
 
         private readonly FrmBluetoothChat app;
-        private readonly string bluetoothPrompt = "Enter Bluetooth address: ";
         private CancellationTokenSource cancelToken;
 
         public AppClient(FrmBluetoothChat app)
@@ -37,7 +36,7 @@ namespace BluetoothChat.Functions
             catch (Exception)
             {
                 app.AppendConsoleText(DisplayFormat.FormatMessage("Incorrect format for Bluetooth address"));
-                app.AppendConsoleText(bluetoothPrompt);
+                app.AppendConsoleText(Messages.BluetoothPrompt);
                 app.SetSendButtonEnabled(true);
                 return;
             }
@@ -53,7 +52,7 @@ namespace BluetoothChat.Functions
             {
                 Client.Dispose();
                 app.AppendConsoleText(DisplayFormat.FormatMessage($"Error connecting to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
                 app.SetConnectedCheckbox(false);
                 return;
@@ -77,7 +76,7 @@ namespace BluetoothChat.Functions
             catch (Exception ex)
             {
                 app.AppendConsoleText(DisplayFormat.FormatMessage($"Error reading messages from server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }
@@ -151,7 +150,7 @@ namespace BluetoothChat.Functions
             catch (Exception ex)
             {
                 app.AppendConsoleText(DisplayFormat.FormatMessage($"Error sending welcome message to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(bluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }
