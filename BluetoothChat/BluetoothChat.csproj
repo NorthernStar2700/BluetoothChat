@@ -58,6 +58,7 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Models\AppAccount.cs" />
     <Compile Include="UI\BluetoothChat.cs">
       <SubType>Form</SubType>
     </Compile>
@@ -70,7 +71,7 @@
     <Compile Include="Functions\AppClient.cs" />
     <Compile Include="Functions\AppServer.cs" />
     <Compile Include="Models\ChatMessage.cs" />
-    <Compile Include="Models\ChatProtocol.cs" />
+    <Compile Include="Functions\ChatProtocol.cs" />
     <Compile Include="UI\DeviceHistory.cs">
       <SubType>Form</SubType>
     </Compile>

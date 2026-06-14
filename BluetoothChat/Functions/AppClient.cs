@@ -119,8 +119,30 @@ namespace BluetoothChat.Functions
                             app.AppendConsoleText(DisplayFormat.FormatMessage(message));
                             break;
                         case MessageType.Join:
+                            AppAccount joinAcc = new AppAccount()
+                            {
+                                Name = response.SenderName,
+                                AccountId = response.SenderId,
+                            };
+                            app.AddChatMember(joinAcc);
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            break;
                         case MessageType.Leave:
+                            AppAccount leaveAcc = new AppAccount()
+                            {
+                                Name = response.SenderName,
+                                AccountId = response.SenderId,
+                            };
+                            app.RemoveChatMember(leaveAcc);
+                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            break;
                         case MessageType.UsernameChange:
+                            AppAccount updateAcc = new AppAccount()
+                            {
+                                Name = response.SenderName,
+                                AccountId = response.SenderId,
+                            };
+                            app.UpdateChatMember(updateAcc);
                             app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
                             break;
                     }
@@ -141,7 +163,8 @@ namespace BluetoothChat.Functions
                 ChatMessage message = new ChatMessage()
                 {
                     MessageType = MessageType.Join,
-                    SenderName = app.DisplayName,
+                    SenderName = app.Account.Name,
+                    SenderId = app.Account.AccountId
                 };
 
                 await SendMessageToServer(message);
@@ -167,7 +190,8 @@ namespace BluetoothChat.Functions
                     ChatMessage message = new ChatMessage()
                     {
                         MessageType = MessageType.Leave,
-                        SenderName = app.DisplayName
+                        SenderName = app.Account.Name,
+                        SenderId = app.Account.AccountId
                     };
 
                     await SendMessageToServer(message);

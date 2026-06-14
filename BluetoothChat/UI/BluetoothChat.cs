@@ -11,18 +11,22 @@ namespace BluetoothChat.UI
 {
     public partial class FrmBluetoothChat : Form
     {
-        public string DisplayName { get; private set; }
+        public AppAccount Account { get; private set; }
 
         private AppMode appMode;
         private readonly AppClient client;
         private readonly AppServer server;
-        private readonly string username = "Current Username: ";
+        private readonly string usernamePlaceholder = "Current Username: ";
 
         public FrmBluetoothChat()
         {
             InitializeComponent();
             client = new AppClient(this);
             server = new AppServer(this);
+            Account = new AppAccount()
+            {
+                Name = Settings.Default.CurrentUsername
+            };
             appMode = AppMode.Inactive;
             RtbConsole.Text = Messages.ConsolePrompt;
             AcceptButton = BtnSend;
@@ -30,14 +34,13 @@ namespace BluetoothChat.UI
 
         private void FrmBluetoothChat_Load(object sender, EventArgs e)
         {
-            if (string.IsNullOrWhiteSpace(DisplayName))
+            if (string.IsNullOrWhiteSpace(Account.Name))
             {
-                DisplayName = Environment.MachineName;
-                Settings.Default.CurrentUsername = DisplayName;
+                Account.Name = Environment.MachineName;
+                Settings.Default.CurrentUsername = Account.Name;
             }
 
-            DisplayName = Settings.Default.CurrentUsername;
-            CurrentUsernameToolStripMenuItem.Text = username + DisplayName;
+            CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + Account.Name;
         }
 
         private void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
@@ -59,7 +62,7 @@ namespace BluetoothChat.UI
 
         private async void ChangeToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            string oldUsername = DisplayName;
+            string oldUsername = Account.Name;
             using (FrmUsernameDialog dialog = new FrmUsernameDialog(oldUsername))
             {
                 DialogResult result = dialog.ShowDialog();
@@ -76,17 +79,19 @@ namespace BluetoothChat.UI
                     {
                         newUsername = newUsername.Replace("[HOST]", string.Empty);
                     }
-                    CurrentUsernameToolStripMenuItem.Text = username + newUsername;
+
+                    CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + newUsername;
                     Settings.Default.CurrentUsername = newUsername;
-                    DisplayName = newUsername;
+                    Account.Name = newUsername;
                 }
 
                 // Send a chat message when users change their usernames
                 ChatMessage message = new ChatMessage()
                 {
                     MessageType = MessageType.UsernameChange,
-                    SenderName = newUsername,
-                    Message = $"[{oldUsername}] changed their name to [{DisplayName}]"
+                    SenderName = Account.Name,
+                    SenderId = Account.AccountId,
+                    Message = $"[{oldUsername}] changed their name to [{Account.Name}]"
                 };
 
                 if (appMode == AppMode.Client && client.IsConnected)
@@ -129,6 +134,7 @@ namespace BluetoothChat.UI
                         await client.AttemptConnection();
                         if (client.IsConnected)
                         {
+                            Account.InitializeAccountId();
                             await client.SendJoinMessage();
                             await client.StartReadingMessagesAsync();
                         }
@@ -139,7 +145,8 @@ namespace BluetoothChat.UI
                         ChatMessage message = new ChatMessage()
                         {
                             MessageType = MessageType.Chat,
-                            SenderName = DisplayName,
+                            SenderName = Account.Name,
+                            SenderId = Account.AccountId,
                             Message = TxtInput.Text.Trim()
                         };
 
@@ -209,6 +216,7 @@ namespace BluetoothChat.UI
                 ToggleServerTabs();
                 RtbConsole.Clear();
                 RtbConsole.Text = Messages.ConsolePrompt;
+                LbxMembers.Items.Clear();
                 BtnSend.Enabled = true;
                 ChkConnected.Checked = false;
             });
@@ -244,6 +252,38 @@ namespace BluetoothChat.UI
             appMode = mode;
         }
 
+        public void AddChatMember(AppAccount account)
+        {
+            RunActionOnUI(() => LbxMembers.Items.Add(account));
+        }
+
+        public void RemoveChatMember(AppAccount account)
+        {
+            RunActionOnUI(() =>
+            {
+                int index = FindMember(account);
+
+                if (index != -1)
+                {
+                    LbxMembers.Items.RemoveAt(index);
+                }
+            });
+        }
+
+        public void UpdateChatMember(AppAccount account)
+        {
+
+            RunActionOnUI(() =>
+            {
+                int index = FindMember(account);
+
+                if (index != -1)
+                {
+                    LbxMembers.Items[index] = account;
+                }
+            });
+        }
+
         public string GetInputText()
         {
             return TxtInput.Text;
@@ -275,6 +315,23 @@ namespace BluetoothChat.UI
             {
 
             }
+        }
+
+        private int FindMember(AppAccount account)
+        {
+            int index = -1;
+            int current = 0;
+            foreach (AppAccount appAccount in LbxMembers.Items)
+            {
+                if (appAccount.AccountId == account.AccountId)
+                {
+                    index = current;
+                    break;
+                }
+                current++;
+            }
+
+            return index;
         }
     }
 }

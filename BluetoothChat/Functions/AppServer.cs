@@ -11,6 +11,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace BluetoothChat.Functions
 {
@@ -144,6 +145,34 @@ namespace BluetoothChat.Functions
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
                     await SendMessageToClientsAsync(chat);
+
+                    switch (chat.MessageType)
+                    {
+                        case MessageType.Join:
+                            AppAccount joinAcc = new AppAccount()
+                            {
+                                Name = chat.SenderName,
+                                AccountId = chat.SenderId,
+                            };
+                            app.AddChatMember(joinAcc);
+                            break;
+                        case MessageType.Leave:
+                            AppAccount leaveAcc = new AppAccount()
+                            {
+                                Name = chat.SenderName,
+                                AccountId = chat.SenderId,
+                            };
+                            app.RemoveChatMember(leaveAcc);
+                            break;
+                        case MessageType.UsernameChange:
+                            AppAccount updateAcc = new AppAccount()
+                            {
+                                Name = chat.SenderName,
+                                AccountId = chat.SenderId,
+                            };
+                            app.UpdateChatMember(updateAcc);
+                            break;
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -239,6 +268,10 @@ namespace BluetoothChat.Functions
             try
             {
                 client?.Dispose();
+            }
+            catch (NullReferenceException)
+            {
+
             }
             catch (Exception)
             {
