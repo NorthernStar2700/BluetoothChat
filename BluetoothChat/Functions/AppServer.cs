@@ -24,7 +24,6 @@ namespace BluetoothChat.Functions
         private readonly List<BluetoothClient> clients = new List<BluetoothClient>();
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
-        private Task serverTask;
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -53,7 +52,8 @@ namespace BluetoothChat.Functions
             app.AppendConsoleText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
             app.SetConnectedCheckbox(true);
             IsRunning = true;
-            serverTask = Task.Run(() => HostSession(cancelToken.Token));
+            app.AddChatMember(app.Account);
+            Task.Run(() => HostSession(cancelToken.Token));
         }
 
         public void Stop()
@@ -114,7 +114,6 @@ namespace BluetoothChat.Functions
 
                     AddClient(client);
                     _ = Task.Run(() => HandleClientAsync(client, stream, ct));
-
                 }
                 catch (IOException e) when (e.InnerException is SocketException socketEx && 
                     socketEx.SocketErrorCode == SocketError.Interrupted)
@@ -155,6 +154,7 @@ namespace BluetoothChat.Functions
                                 AccountId = chat.SenderId,
                             };
                             app.AddChatMember(joinAcc);
+                            await SendJoinMessageToClientAsync(stream);
                             break;
                         case MessageType.Leave:
                             AppAccount leaveAcc = new AppAccount()
@@ -247,6 +247,27 @@ namespace BluetoothChat.Functions
             catch (Exception e)
             {
                 app.AppendConsoleText($"{e.Message}");
+            }
+        }
+
+        public async Task SendJoinMessageToClientAsync(NetworkStream stream)
+        {
+            try
+            {
+                ChatMessage chat = new ChatMessage()
+                {
+                    MessageType = MessageType.Join,
+                    SenderName = app.Account.Name,
+                    SenderId = app.Account.AccountId,
+                    Message = ChatProtocol.SerializeAccountMembers(app.GetAppAccounts()),
+                    IsHost = true,
+                };
+
+                await ChatProtocol.SendAsync(stream, chat);
+            }
+            catch (Exception)
+            {
+
             }
         }
 

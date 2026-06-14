@@ -6,6 +6,7 @@ using BluetoothChat.Utilities;
 using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -119,14 +120,34 @@ namespace BluetoothChat.Functions
                             app.AppendConsoleText(DisplayFormat.FormatMessage(message));
                             break;
                         case MessageType.Join:
-                            AppAccount joinAcc = new AppAccount()
+                            if (!response.IsHost)
                             {
-                                Name = response.SenderName,
-                                AccountId = response.SenderId,
-                            };
-                            app.AddChatMember(joinAcc);
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
-                            break;
+                                AppAccount joinAcc = new AppAccount()
+                                {
+                                    Name = response.SenderName,
+                                    AccountId = response.SenderId,
+                                };
+                                app.AddChatMember(joinAcc);
+                                app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            }
+                            else
+                            {
+                                // Used for the server sending all currently connected members when the client first joins
+                                // Then management of each member happens as usual
+                                try
+                                {
+                                    List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Message);
+                                    foreach (AppAccount account in accounts)
+                                    {
+                                        app.AddChatMember(account);
+                                    }
+                                }
+                                catch (Exception)
+                                {
+
+                                }
+                            }
+                                break;
                         case MessageType.Leave:
                             AppAccount leaveAcc = new AppAccount()
                             {

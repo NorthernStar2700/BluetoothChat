@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
@@ -42,6 +43,10 @@ namespace BluetoothChat.Models
 
             return Deserialize(json);
         }
+
+        public static string SerializeAccountMembers(List<AppAccount> accounts) => JsonConvert.SerializeObject(accounts);
+
+        public static List<AppAccount> DeserializeAccountMembers(string json) => (List<AppAccount>) JsonConvert.DeserializeObject(json);
 
         private static async Task<byte[]> ReadBytesAsync(NetworkStream stream, int length)
         {
@@ -90,6 +95,6 @@ namespace BluetoothChat.Models
 
         private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
 
-        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
+        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json);
     }
 }

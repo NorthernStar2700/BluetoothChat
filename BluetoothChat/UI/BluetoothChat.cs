@@ -1,5 +1,7 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 using BluetoothChat.Constants;
 using BluetoothChat.Enums;
@@ -287,6 +289,11 @@ namespace BluetoothChat.UI
         public string GetInputText()
         {
             return TxtInput.Text;
+        }
+
+        public List<AppAccount> GetAppAccounts()
+        {
+            return LbxMembers.Items.OfType<AppAccount>().ToList();
         }
 
         private void RunActionOnUI(Action action)
