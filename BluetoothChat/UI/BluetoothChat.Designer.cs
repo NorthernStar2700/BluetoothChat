@@ -241,6 +241,7 @@
             this.MinimumSize = new System.Drawing.Size(816, 486);
             this.Name = "FrmBluetoothChat";
             this.Text = "Bluetooth Chat";
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmBluetoothChat_FormClosing);
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FrmBluetoothChat_FormClosed);
             this.Load += new System.EventHandler(this.FrmBluetoothChat_Load);
             this.menuStrip1.ResumeLayout(false);
@@ -263,14 +264,14 @@
         private System.Windows.Forms.ToolStripMenuItem ServerToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem CreateToolStripMenuItem;
         private System.Windows.Forms.ToolStripMenuItem ConnectToolStripMenuItem;
-        public System.Windows.Forms.RichTextBox RtbConsole;
-        public System.Windows.Forms.TextBox TxtInput;
-        public System.Windows.Forms.Button BtnSend;
-        public System.Windows.Forms.Button BtnExit;
         private System.Windows.Forms.CheckBox ChkConnected;
         private System.Windows.Forms.ToolStripMenuItem HistoryToolStripMenuItem;
         private System.Windows.Forms.GroupBox GbxMembers;
         private System.Windows.Forms.ListBox LbxMembers;
+        private System.Windows.Forms.RichTextBox RtbConsole;
+        private System.Windows.Forms.TextBox TxtInput;
+        private System.Windows.Forms.Button BtnSend;
+        private System.Windows.Forms.Button BtnExit;
     }
 }
 

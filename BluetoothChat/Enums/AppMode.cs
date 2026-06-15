@@ -1,4 +1,4 @@
-﻿namespace BluetoothChat.Constants
+﻿namespace BluetoothChat.Enums
 {
     public enum AppMode
     {

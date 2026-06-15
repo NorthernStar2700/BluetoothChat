@@ -11,7 +11,6 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows.Forms;
 
 namespace BluetoothChat.Functions
 {
@@ -22,8 +21,10 @@ namespace BluetoothChat.Functions
         private readonly FrmBluetoothChat app;
         private readonly object clientLock = new object();
         private readonly List<BluetoothClient> clients = new List<BluetoothClient>();
+        private readonly List<AppAccount> accounts = new List<AppAccount>();
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
+        private Task sessionTask;
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -32,10 +33,17 @@ namespace BluetoothChat.Functions
 
         public void Start()
         {
-            cancelToken = new CancellationTokenSource();
-            listener = new BluetoothListener(Messages.Guid);
 
-            app.AppendConsoleText(DisplayFormat.FormatMessage("Starting server..."));
+            if (IsRunning)
+            {
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Server is already active. You cannot run another server"));
+                return;
+            }
+
+            cancelToken = new CancellationTokenSource();
+            listener = new BluetoothListener(Messages.ServiceGuid);
+
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Starting server..."));
             try
             {
                 listener.Start();
@@ -43,17 +51,17 @@ namespace BluetoothChat.Functions
             catch (Exception e)
             {
                 app.SetAppMode(AppMode.Inactive);
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to start server: {e.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.ConsolePrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Unable to start server: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.ConsolePrompt));
                 return;
             }
 
-            app.AppendConsoleText(DisplayFormat.FormatMessage("Waiting for clients"));
-            app.AppendConsoleText(DisplayFormat.FormatMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients"));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
             app.SetConnectedCheckbox(true);
             IsRunning = true;
             app.AddChatMember(app.Account);
-            Task.Run(() => HostSession(cancelToken.Token));
+            sessionTask = Task.Run(() => HostSession(cancelToken.Token));
         }
 
         public void Stop()
@@ -94,9 +102,9 @@ namespace BluetoothChat.Functions
                 {
                     client.Dispose();
                 }
-                catch (Exception e) 
+                catch (Exception) 
                 {
-                    app.AppendConsoleText($"{e.Message}");
+
                 }
             }
         }
@@ -130,7 +138,7 @@ namespace BluetoothChat.Functions
                 }
                 catch (Exception e)
                 {
-                    app.AppendConsoleText(DisplayFormat.FormatMessage($"Client could not be connected: {e.Message}"));
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Client could not be connected: {e.Message}"));
                     return;
                 }
             }
@@ -153,15 +161,13 @@ namespace BluetoothChat.Functions
                                 Name = chat.SenderName,
                                 AccountId = chat.SenderId,
                             };
+                            accounts.Add(joinAcc);
                             app.AddChatMember(joinAcc);
                             await SendJoinMessageToClientAsync(stream);
                             break;
                         case MessageType.Leave:
-                            AppAccount leaveAcc = new AppAccount()
-                            {
-                                Name = chat.SenderName,
-                                AccountId = chat.SenderId,
-                            };
+                            AppAccount leaveAcc = accounts.First(acc => acc.AccountId == chat.SenderId);
+                            accounts.Remove(leaveAcc);
                             app.RemoveChatMember(leaveAcc);
                             break;
                         case MessageType.UsernameChange:
@@ -189,7 +195,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Client error: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Client error: {e.Message}"));
             }
             finally
             {
@@ -202,27 +208,26 @@ namespace BluetoothChat.Functions
             string message = string.Empty;
             switch (chat.MessageType)
             {
-                case MessageType.Chat:
-                    string isHost = chat.IsHost ? "[HOST] " : string.Empty;
-                    app.AppendConsoleText(DisplayFormat.FormatMessage($"{isHost}[{chat.SenderName}]: {chat.Message}"));
+                case MessageType.ServerMessage:
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{chat.SenderName}]: {chat.Content}"));
                     break;
                 case MessageType.Join:
                     message = $">> [{chat.SenderName}] joined the server";
-                    app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message));
                     break;
                 case MessageType.Leave:
                     message = $">> [{chat.SenderName}] left the server";
-                    app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message));
                     break;
                 case MessageType.UsernameChange:
-                    app.AppendConsoleText(DisplayFormat.FormatMessage(chat.Message));
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(chat.Content));
                     break;
             }
 
             // Clients send the indicator, server sends the message to all other clients
             if (!string.IsNullOrWhiteSpace(message))
             {
-                chat.Message = message;
+                chat.Content = message;
             }
 
             BluetoothClient[] clientCopy = GetClients();
@@ -256,11 +261,10 @@ namespace BluetoothChat.Functions
             {
                 ChatMessage chat = new ChatMessage()
                 {
-                    MessageType = MessageType.Join,
+                    MessageType = MessageType.MemberList,
                     SenderName = app.Account.Name,
                     SenderId = app.Account.AccountId,
-                    Message = ChatProtocol.SerializeAccountMembers(app.GetAppAccounts()),
-                    IsHost = true,
+                    Content = ChatProtocol.SerializeAccountMembers(app.GetAppAccounts()),
                 };
 
                 await ChatProtocol.SendAsync(stream, chat);

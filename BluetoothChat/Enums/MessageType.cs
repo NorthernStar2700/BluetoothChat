@@ -5,6 +5,8 @@
         Chat,
         Join,
         Leave,
-        UsernameChange
+        UsernameChange,
+        ServerMessage,
+        MemberList
     }
 }

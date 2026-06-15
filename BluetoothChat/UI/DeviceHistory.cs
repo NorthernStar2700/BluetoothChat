@@ -6,7 +6,7 @@ namespace BluetoothChat.UI
 {
     public partial class FrmDeviceHistory : Form
     {
-        string deviceList;
+        private string deviceList;
 
         public FrmDeviceHistory(string deviceList)
         {

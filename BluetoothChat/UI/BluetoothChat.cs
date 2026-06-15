@@ -29,6 +29,7 @@ namespace BluetoothChat.UI
             {
                 Name = Settings.Default.CurrentUsername
             };
+            Account.InitializeAccountId();
             appMode = AppMode.Inactive;
             RtbConsole.Text = Messages.ConsolePrompt;
             AcceptButton = BtnSend;
@@ -45,6 +46,25 @@ namespace BluetoothChat.UI
             CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + Account.Name;
         }
 
+        private async void FrmBluetoothChat_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            try
+            {
+                if (server.IsRunning)
+                {
+                    server.Stop();
+                }
+                else if (client.IsConnected)
+                {
+                    await client.SendLeaveMessage();
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.ToString());
+            }
+        }
+
         private void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
         {
             Settings.Default.Save();
@@ -52,14 +72,18 @@ namespace BluetoothChat.UI
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmDeviceSearch deviceSearch = new FrmDeviceSearch(Settings.Default.DeviceHistory);
-            deviceSearch.Show();
+            using (FrmDeviceSearch deviceSearch = new FrmDeviceSearch(Settings.Default.DeviceHistory))
+            {
+                deviceSearch.ShowDialog();
+            }
         }
 
         private void HistoryToolStripMenuItem_Click(object sender, EventArgs e)
         {
-            FrmDeviceHistory deviceHistory = new FrmDeviceHistory(Settings.Default.DeviceHistory);
-            deviceHistory.Show();
+            using (FrmDeviceHistory deviceHistory = new FrmDeviceHistory(Settings.Default.DeviceHistory))
+            {
+                deviceHistory.ShowDialog();
+            }
         }
 
         private async void ChangeToolStripMenuItem_Click(object sender, EventArgs e)
@@ -79,7 +103,8 @@ namespace BluetoothChat.UI
                 {
                     if (newUsername.ToUpperInvariant().IndexOf("[HOST]") != -1)
                     {
-                        newUsername = newUsername.Replace("[HOST]", string.Empty);
+                        MessageBox.Show("Your name cannot have [HOST] in it");
+                        return;
                     }
 
                     CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + newUsername;
@@ -93,7 +118,7 @@ namespace BluetoothChat.UI
                     MessageType = MessageType.UsernameChange,
                     SenderName = Account.Name,
                     SenderId = Account.AccountId,
-                    Message = $"[{oldUsername}] changed their name to [{Account.Name}]"
+                    Content = $"[{oldUsername}] changed their name to [{Account.Name}]"
                 };
 
                 if (appMode == AppMode.Client && client.IsConnected)
@@ -102,7 +127,7 @@ namespace BluetoothChat.UI
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
-                    message.IsHost = true;
+                    message.MessageType = MessageType.ServerMessage;
                     await server.SendMessageToClientsAsync(message);
                 }
             }
@@ -149,7 +174,7 @@ namespace BluetoothChat.UI
                             MessageType = MessageType.Chat,
                             SenderName = Account.Name,
                             SenderId = Account.AccountId,
-                            Message = TxtInput.Text.Trim()
+                            Content = TxtInput.Text.Trim()
                         };
 
                         if (client.IsConnected && appMode == AppMode.Client)
@@ -158,20 +183,24 @@ namespace BluetoothChat.UI
                         }
                         else if (server.IsRunning && appMode == AppMode.Host)
                         {
-                            message.IsHost = true;
+                            message.MessageType = MessageType.ServerMessage;
                             await server.SendMessageToClientsAsync(message);
                         }
                     }
                     ClearInputText();
                 }
             }
-            catch { }
+            catch (Exception ex)
+            {
+                AppendConsoleText(ex.ToString());
+            }
         }
 
         private async void BtnExit_Click(object sender, EventArgs e)
         {
             if (appMode != AppMode.Inactive)
             {
+                BtnSend.Enabled = false;
                 if (server.IsRunning && appMode == AppMode.Host)
                 {
                     server.Stop();

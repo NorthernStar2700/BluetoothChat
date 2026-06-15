@@ -7,6 +7,7 @@ using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -19,6 +20,7 @@ namespace BluetoothChat.Functions
 
         private readonly FrmBluetoothChat app;
         private CancellationTokenSource cancelToken;
+        private NetworkStream stream;
 
         public AppClient(FrmBluetoothChat app)
         {
@@ -27,7 +29,7 @@ namespace BluetoothChat.Functions
 
         public async Task AttemptConnection()
         {
-            app.AppendConsoleText(DisplayFormat.FormatMessage(app.GetInputText()));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(app.GetInputText()));
             BluetoothAddress address;
             try
             {
@@ -36,7 +38,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage("Incorrect format for Bluetooth address"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Incorrect format for Bluetooth address"));
                 app.AppendConsoleText(Messages.BluetoothPrompt);
                 app.SetSendButtonEnabled(true);
                 return;
@@ -45,15 +47,21 @@ namespace BluetoothChat.Functions
             try
             {
                 Client = new BluetoothClient();
-                app.AppendConsoleText(DisplayFormat.FormatMessage("Connecting to server"));
-                await Task.Run(() => Client.Connect(address, Messages.Guid));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server"));
+                await Task.Run(() =>
+                {
+                    Client.Connect(address, Messages.ServiceGuid);
+                    stream = Client.GetStream();
+                });
                 IsConnected = true;
             }
             catch (Exception ex)
             {
-                Client.Dispose();
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error connecting to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
+                Client?.Close();
+                Client?.Dispose();
+                Client = null;
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error connecting to server: {ex.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
                 app.SetConnectedCheckbox(false);
                 return;
@@ -76,8 +84,8 @@ namespace BluetoothChat.Functions
             }
             catch (Exception ex)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error reading messages from server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error reading messages from server: {ex.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }
@@ -93,11 +101,11 @@ namespace BluetoothChat.Functions
 
             try
             {
-                await ChatProtocol.SendAsync(Client.GetStream(), message);
+                await ChatProtocol.SendAsync(stream, message);
             }
             catch (Exception e)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Unable to broadcast message: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Unable to broadcast message: {e.Message}"));
             }
         }
 
@@ -110,44 +118,22 @@ namespace BluetoothChat.Functions
                     if (!IsConnected)
                         return;
 
-                    ChatMessage response = await ChatProtocol.ReadAsync(Client.GetStream());
+                    ChatMessage response = await ChatProtocol.ReadAsync(stream);
 
                     switch (response.MessageType) 
                     {
                         case MessageType.Chat:
-                            string isHost = response.IsHost ? "[HOST] " : string.Empty;
-                            string message = $"{isHost}[{response.SenderName}]: {response.Message}";
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(message));
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
                             break;
                         case MessageType.Join:
-                            if (!response.IsHost)
+                            AppAccount joinAcc = new AppAccount()
                             {
-                                AppAccount joinAcc = new AppAccount()
-                                {
-                                    Name = response.SenderName,
-                                    AccountId = response.SenderId,
-                                };
-                                app.AddChatMember(joinAcc);
-                                app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
-                            }
-                            else
-                            {
-                                // Used for the server sending all currently connected members when the client first joins
-                                // Then management of each member happens as usual
-                                try
-                                {
-                                    List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Message);
-                                    foreach (AppAccount account in accounts)
-                                    {
-                                        app.AddChatMember(account);
-                                    }
-                                }
-                                catch (Exception)
-                                {
-
-                                }
-                            }
-                                break;
+                                Name = response.SenderName,
+                                AccountId = response.SenderId,
+                            };
+                            app.AddChatMember(joinAcc);
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
+                            break;
                         case MessageType.Leave:
                             AppAccount leaveAcc = new AppAccount()
                             {
@@ -155,7 +141,7 @@ namespace BluetoothChat.Functions
                                 AccountId = response.SenderId,
                             };
                             app.RemoveChatMember(leaveAcc);
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
                             break;
                         case MessageType.UsernameChange:
                             AppAccount updateAcc = new AppAccount()
@@ -164,7 +150,25 @@ namespace BluetoothChat.Functions
                                 AccountId = response.SenderId,
                             };
                             app.UpdateChatMember(updateAcc);
-                            app.AppendConsoleText(DisplayFormat.FormatMessage(response.Message));
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
+                            break;
+                        case MessageType.ServerMessage:
+                            break;
+                        case MessageType.MemberList:
+                            // Used for the server sending all currently connected members when the client first joins
+                            // Then management of each member happens as usual
+                            try
+                            {
+                                List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Content);
+                                foreach (AppAccount account in accounts)
+                                {
+                                    app.AddChatMember(account);
+                                }
+                            }
+                            catch (Exception e)
+                            {
+                                app.AppendConsoleText($"{e}");
+                            }
                             break;
                     }
                 }
@@ -173,6 +177,7 @@ namespace BluetoothChat.Functions
                     app.ResetUI();
                     Client.Close();
                     IsConnected = false;
+                    return;
                 }
             }
         }
@@ -193,8 +198,8 @@ namespace BluetoothChat.Functions
             }
             catch (Exception ex)
             {
-                app.AppendConsoleText(DisplayFormat.FormatMessage($"Error sending welcome message to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatMessage(Messages.BluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error sending welcome message to server: {ex.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }

@@ -11,42 +11,57 @@ namespace BluetoothChat.Models
 {
     public static class ChatProtocol
     {
-        private const int MessageLength = 64 * 1024; 
+        private const int MaxMessageLength = 64 * 1024; 
 
         public static async Task SendAsync(NetworkStream stream, ChatMessage message)
-        {
-            string json = Serialize(message);
-            byte[] messageData = Encoding.UTF8.GetBytes(json);
+        {   
+            
+            try
+            {
+                string json = Serialize(message);
+                byte[] messageData = Encoding.UTF8.GetBytes(json);
 
-            // HostToNetworkOrder helps with different platforms and message lengths
-            byte[] lengthData = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(messageData.Length));
+                // HostToNetworkOrder helps with different platforms and message lengths
+                byte[] lengthData = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(messageData.Length));
 
-            // Tell the server the length of the message as well as the message itself
-            await WriteInternalAsync(stream, lengthData, 0, lengthData.Length);
-            await WriteInternalAsync(stream, messageData, 0, messageData.Length);
+                // Tell the server the length of the message as well as the message itself
+                await WriteInternalAsync(stream, lengthData, 0, lengthData.Length);
+                await WriteInternalAsync(stream, messageData, 0, messageData.Length);
+            }
+            catch (Exception e)
+            {
+                throw new IOException($"Write message error: {e.Message}");
+            }
         }
 
         public static async Task<ChatMessage> ReadAsync(NetworkStream stream)
         {
-            // 4 is used as a length buffer
-            byte[] lengthBuffer = await ReadBytesAsync(stream, 4);
-            int messageLength = IPAddress.HostToNetworkOrder(BitConverter.ToInt32(lengthBuffer, 0));
-
-            // Check message length to make sure it isn't empty or exceeds a certain amount
-            if (messageLength <= 0 || messageLength > MessageLength)
+            try
             {
-                throw new IOException($"Invalid message length: {messageLength}");
+                // 4 is used as a length buffer
+                byte[] lengthBuffer = await ReadBytesAsync(stream, 4);
+                int messageLength = IPAddress.NetworkToHostOrder(BitConverter.ToInt32(lengthBuffer, 0));
+
+                // Check message length to make sure it isn't empty or exceeds a certain amount
+                if (messageLength <= 0 || messageLength > MaxMessageLength)
+                {
+                    throw new IOException($"Invalid message length: {messageLength}");
+                }
+
+                byte[] messageBuffer = await ReadBytesAsync(stream, messageLength);
+                string json = Encoding.UTF8.GetString(messageBuffer);
+
+                return Deserialize(json);
             }
-
-            byte[] messageBuffer = await ReadBytesAsync(stream, messageLength);
-            string json = Encoding.UTF8.GetString(messageBuffer);
-
-            return Deserialize(json);
+            catch (Exception e)
+            {
+                throw new IOException($"Read message error: {e.Message}");
+            }
         }
 
         public static string SerializeAccountMembers(List<AppAccount> accounts) => JsonConvert.SerializeObject(accounts);
 
-        public static List<AppAccount> DeserializeAccountMembers(string json) => (List<AppAccount>) JsonConvert.DeserializeObject(json);
+        public static List<AppAccount> DeserializeAccountMembers(string json) => (List<AppAccount>) JsonConvert.DeserializeObject(json, typeof(List<AppAccount>));
 
         private static async Task<byte[]> ReadBytesAsync(NetworkStream stream, int length)
         {
@@ -69,32 +84,12 @@ namespace BluetoothChat.Models
             return buffer;
         }
 
-        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count)
-        {
-            try
-            {
-                return Task.Run(() => stream.Read(buffer, offset, count));
-            }
-            catch (IOException)
-            {
-                return Task.FromResult(0);
-            }
-        }
+        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Read(buffer, offset, count));
 
-        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count)
-        {
-            try
-            {
-                return Task.Run(() => stream.Write(buffer, offset, count));
-            }
-            catch (Exception)
-            {
-                return Task.FromResult(new Task(null));
-            }
-        }
+        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Write(buffer, offset, count));
 
         private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
 
-        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json);
+        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
     }
 }
