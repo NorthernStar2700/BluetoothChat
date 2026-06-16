@@ -39,7 +39,7 @@ namespace BluetoothChat.Functions
             catch (Exception)
             {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Incorrect format for Bluetooth address"));
-                app.AppendConsoleText(Messages.BluetoothPrompt);
+                app.AppendConsoleText(UIMessages.BluetoothPrompt);
                 app.SetSendButtonEnabled(true);
                 return;
             }
@@ -50,7 +50,7 @@ namespace BluetoothChat.Functions
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server"));
                 await Task.Run(() =>
                 {
-                    Client.Connect(address, Messages.ServiceGuid);
+                    Client.Connect(address, BluetoothConstants.ServiceGuid);
                     stream = Client.GetStream();
                 });
                 IsConnected = true;
@@ -61,7 +61,7 @@ namespace BluetoothChat.Functions
                 Client?.Dispose();
                 Client = null;
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error connecting to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
                 app.SetConnectedCheckbox(false);
                 return;
@@ -85,7 +85,7 @@ namespace BluetoothChat.Functions
             catch (Exception ex)
             {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error reading messages from server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }
@@ -105,7 +105,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Unable to broadcast message: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Unable to broadcast message: {e.Message}"));
             }
         }
 
@@ -198,8 +198,8 @@ namespace BluetoothChat.Functions
             }
             catch (Exception ex)
             {
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error sending welcome message to server: {ex.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.BluetoothPrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send join message to server: {ex.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 IsConnected = false;
                 return;
             }

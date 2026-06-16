@@ -31,7 +31,7 @@ namespace BluetoothChat.UI
             };
             Account.InitializeAccountId();
             appMode = AppMode.Inactive;
-            RtbConsole.Text = Messages.ConsolePrompt;
+            RtbConsole.Text = UIMessages.ConsolePrompt;
             AcceptButton = BtnSend;
         }
 
@@ -223,7 +223,7 @@ namespace BluetoothChat.UI
         {
             appMode = AppMode.Client;
             RtbConsole.Clear();
-            RtbConsole.Text = Messages.BluetoothPrompt;
+            RtbConsole.Text = UIMessages.BluetoothPrompt;
         }
 
         private void CreateServerPrompt()
@@ -246,7 +246,7 @@ namespace BluetoothChat.UI
             {
                 ToggleServerTabs();
                 RtbConsole.Clear();
-                RtbConsole.Text = Messages.ConsolePrompt;
+                RtbConsole.Text = UIMessages.ConsolePrompt;
                 LbxMembers.Items.Clear();
                 BtnSend.Enabled = true;
                 ChkConnected.Checked = false;

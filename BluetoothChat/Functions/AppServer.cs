@@ -41,7 +41,7 @@ namespace BluetoothChat.Functions
             }
 
             cancelToken = new CancellationTokenSource();
-            listener = new BluetoothListener(Messages.ServiceGuid);
+            listener = new BluetoothListener(BluetoothConstants.ServiceGuid);
 
             app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Starting server..."));
             try
@@ -51,8 +51,8 @@ namespace BluetoothChat.Functions
             catch (Exception e)
             {
                 app.SetAppMode(AppMode.Inactive);
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Unable to start server: {e.Message}"));
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(Messages.ConsolePrompt));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Unable to start server: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.ConsolePrompt));
                 return;
             }
 
@@ -138,7 +138,7 @@ namespace BluetoothChat.Functions
                 }
                 catch (Exception e)
                 {
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Client could not be connected: {e.Message}"));
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Client could not be connected: {e.Message}"));
                     return;
                 }
             }

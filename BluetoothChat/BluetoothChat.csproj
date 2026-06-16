@@ -58,14 +58,16 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Constants\BluetoothConstants.cs" />
     <Compile Include="Models\AppAccount.cs" />
+    <Compile Include="Models\Device.cs" />
     <Compile Include="UI\BluetoothChat.cs">
       <SubType>Form</SubType>
     </Compile>
     <Compile Include="UI\BluetoothChat.Designer.cs">
       <DependentUpon>BluetoothChat.cs</DependentUpon>
     </Compile>
-    <Compile Include="Constants\Messages.cs" />
+    <Compile Include="Constants\UIMessages.cs" />
     <Compile Include="Enums\AppMode.cs" />
     <Compile Include="Enums\MessageType.cs" />
     <Compile Include="Functions\AppClient.cs" />

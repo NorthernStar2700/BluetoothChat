@@ -3,8 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using BluetoothChat.Models;
 using BluetoothChat.Properties;
 using InTheHand.Net.Sockets;
+using Newtonsoft.Json;
 
 namespace BluetoothChat.UI
 {
@@ -13,22 +15,30 @@ namespace BluetoothChat.UI
         private const string searchText = "Searching...";
         private const string searchCompleteText = "Search complete";
         private const string searchErrorText = "Error finding devices. Try scanning again";
-        private string deviceList;
+        private List<Device> deviceList;
 
         public FrmDeviceSearch(string deviceList)
         {
             InitializeComponent();
-            this.deviceList = deviceList;
+            List<Device> devices = (List<Device>) JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
+            if (devices != null && devices.Count > 0)
+            {
+                this.deviceList = devices;
+            }
+            else
+            {
+                this.deviceList = new List<Device>();
+            }
         }
 
         private void FrmDeviceSearch_Load(object sender, EventArgs e)
         {
-            SearchForDevices();
+            _ = SearchForDevicesAsync();
         }
 
         private void FrmDeviceSearch_FormClosed(object sender, FormClosedEventArgs e)
         {
-            Settings.Default.DeviceHistory = deviceList;
+            Settings.Default.DeviceHistory = JsonConvert.SerializeObject(deviceList);
             Settings.Default.Save();
         }
 
@@ -36,7 +46,7 @@ namespace BluetoothChat.UI
         {
             BtnRestart.Enabled = false;
             LbxDevices.Items.Clear();
-            SearchForDevices();
+            _ = SearchForDevicesAsync();
         }
 
         private void BtnCopy_Click(object sender, EventArgs e)
@@ -47,29 +57,18 @@ namespace BluetoothChat.UI
             }
 
             // Format: (Device Name) | (Address)
-            string device = (string)LbxDevices.Items[LbxDevices.SelectedIndex];
-            string[] deviceInfo = 
-                device.Split(new string[] { " | " }, StringSplitOptions.None);
-
-            if (deviceInfo.Length != 2)
-            {
-                return;
-            }
-
-            string deviceAddress = deviceInfo[1];
-            Clipboard.SetText(deviceAddress);
-            MessageBox.Show($"Copied device address {deviceAddress} to clipboard",
+            Device device = (Device)LbxDevices.Items[LbxDevices.SelectedIndex];
+            Clipboard.SetText(device.Address);
+            MessageBox.Show($"Copied device address {device.Address} to clipboard",
                 "Copy successful",
                 MessageBoxButtons.OK,
                 MessageBoxIcon.Information);
 
             // Save to history if entry does not exist
-            deviceList = Settings.Default.DeviceHistory;
-            if (!deviceList.Contains(device))
+            Device deviceExists = deviceList.FirstOrDefault(dev => (dev.Name == device.Name) && (dev.Address == device.Address));
+            if (deviceExists == null)
             {
-                deviceList += $"{device},";
-                Settings.Default.DeviceHistory = deviceList;
-                Settings.Default.Save();
+                deviceList.Add(device);
             }
         }
 
@@ -78,9 +77,10 @@ namespace BluetoothChat.UI
             BtnCopy.PerformClick();
         }
 
-        private async void SearchForDevices()
+        private async Task SearchForDevicesAsync()
         {
             LblSearch.Text = searchText;
+            BtnRestart.Enabled = false;
 
             try
             {
@@ -92,16 +92,20 @@ namespace BluetoothChat.UI
                     }
                 });
 
-                if (Disposing)
+                if (IsDisposed || Disposing || !IsHandleCreated)
                 {
                     return;
                 }
 
                 foreach (BluetoothDeviceInfo device in devices)
                 {
-                    string hasDeviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
-                    string formattedEntry = $"{device.DeviceName} | {device.DeviceAddress}";
-                    BeginInvoke((Action)(() => LbxDevices.Items.Add(formattedEntry)));
+                    string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
+                    Device deviceObj = new Device()
+                    {
+                        Name = deviceName,
+                        Address = device.DeviceAddress.ToString()
+                    };
+                    LbxDevices.Items.Add(deviceObj);
                 }
 
                 LblSearch.Text = searchCompleteText;
@@ -112,7 +116,10 @@ namespace BluetoothChat.UI
             }
             finally
             {
-                BtnRestart.Enabled = true;
+                if (!IsDisposed && !Disposing && IsHandleCreated)
+                {
+                    BtnRestart.Enabled = true;
+                }
             }
         }
     }

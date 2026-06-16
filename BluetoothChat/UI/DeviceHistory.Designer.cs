@@ -31,14 +31,14 @@
             this.BtnCopy = new System.Windows.Forms.Button();
             this.BtnDelete = new System.Windows.Forms.Button();
             this.LbxDevices = new System.Windows.Forms.ListBox();
-            this.BtnReload = new System.Windows.Forms.Button();
             this.SuspendLayout();
             // 
             // BtnCopy
             // 
-            this.BtnCopy.Location = new System.Drawing.Point(232, 232);
+            this.BtnCopy.Location = new System.Drawing.Point(266, 286);
+            this.BtnCopy.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.BtnCopy.Name = "BtnCopy";
-            this.BtnCopy.Size = new System.Drawing.Size(75, 23);
+            this.BtnCopy.Size = new System.Drawing.Size(100, 28);
             this.BtnCopy.TabIndex = 4;
             this.BtnCopy.Text = "Copy";
             this.BtnCopy.UseVisualStyleBackColor = true;
@@ -46,9 +46,10 @@
             // 
             // BtnDelete
             // 
-            this.BtnDelete.Location = new System.Drawing.Point(70, 232);
+            this.BtnDelete.Location = new System.Drawing.Point(158, 286);
+            this.BtnDelete.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.BtnDelete.Name = "BtnDelete";
-            this.BtnDelete.Size = new System.Drawing.Size(75, 23);
+            this.BtnDelete.Size = new System.Drawing.Size(100, 28);
             this.BtnDelete.TabIndex = 2;
             this.BtnDelete.Text = "Delete";
             this.BtnDelete.UseVisualStyleBackColor = true;
@@ -58,34 +59,26 @@
             // 
             this.LbxDevices.FormattingEnabled = true;
             this.LbxDevices.HorizontalScrollbar = true;
-            this.LbxDevices.Location = new System.Drawing.Point(12, 12);
+            this.LbxDevices.ItemHeight = 16;
+            this.LbxDevices.Location = new System.Drawing.Point(16, 15);
+            this.LbxDevices.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.LbxDevices.Name = "LbxDevices";
-            this.LbxDevices.Size = new System.Drawing.Size(363, 212);
+            this.LbxDevices.Size = new System.Drawing.Size(483, 260);
             this.LbxDevices.TabIndex = 1;
             this.LbxDevices.DoubleClick += new System.EventHandler(this.LbxDevices_DoubleClick);
             // 
-            // BtnReload
-            // 
-            this.BtnReload.Location = new System.Drawing.Point(151, 232);
-            this.BtnReload.Name = "BtnReload";
-            this.BtnReload.Size = new System.Drawing.Size(75, 23);
-            this.BtnReload.TabIndex = 3;
-            this.BtnReload.Text = "Reload";
-            this.BtnReload.UseVisualStyleBackColor = true;
-            this.BtnReload.Click += new System.EventHandler(this.BtnReload_Click);
-            // 
             // FrmDeviceHistory
             // 
-            this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
+            this.AutoScaleDimensions = new System.Drawing.SizeF(8F, 16F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(389, 264);
-            this.Controls.Add(this.BtnReload);
+            this.ClientSize = new System.Drawing.Size(516, 325);
             this.Controls.Add(this.BtnCopy);
             this.Controls.Add(this.BtnDelete);
             this.Controls.Add(this.LbxDevices);
             this.FormBorderStyle = System.Windows.Forms.FormBorderStyle.FixedDialog;
+            this.Margin = new System.Windows.Forms.Padding(4, 4, 4, 4);
             this.MaximizeBox = false;
-            this.MaximumSize = new System.Drawing.Size(405, 319);
+            this.MaximumSize = new System.Drawing.Size(534, 382);
             this.Name = "FrmDeviceHistory";
             this.Text = "Device History";
             this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FrmDeviceHistory_FormClosed);
@@ -99,6 +92,5 @@
         private System.Windows.Forms.Button BtnCopy;
         private System.Windows.Forms.Button BtnDelete;
         private System.Windows.Forms.ListBox LbxDevices;
-        private System.Windows.Forms.Button BtnReload;
     }
 }
