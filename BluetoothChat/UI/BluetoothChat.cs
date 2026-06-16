@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Security.Principal;
 using System.Windows.Forms;
 using BluetoothChat.Constants;
 using BluetoothChat.Enums;
@@ -18,7 +19,6 @@ namespace BluetoothChat.UI
         private AppMode appMode;
         private readonly AppClient client;
         private readonly AppServer server;
-        private readonly string usernamePlaceholder = "Current Username: ";
 
         public FrmBluetoothChat()
         {
@@ -27,7 +27,7 @@ namespace BluetoothChat.UI
             server = new AppServer(this);
             Account = new AppAccount()
             {
-                Name = Settings.Default.CurrentUsername
+                Name = Settings.Default.CurrentUsername,
             };
             Account.InitializeAccountId();
             appMode = AppMode.Inactive;
@@ -43,11 +43,13 @@ namespace BluetoothChat.UI
                 Settings.Default.CurrentUsername = Account.Name;
             }
 
-            CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + Account.Name;
+            CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + Account.Name;
         }
 
-        private async void FrmBluetoothChat_FormClosing(object sender, FormClosingEventArgs e)
+        private async void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
         {
+            Settings.Default.Save();
+
             try
             {
                 if (server.IsRunning)
@@ -63,11 +65,6 @@ namespace BluetoothChat.UI
             {
                 MessageBox.Show(ex.ToString());
             }
-        }
-
-        private void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
-        {
-            Settings.Default.Save();
         }
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
@@ -107,7 +104,7 @@ namespace BluetoothChat.UI
                         return;
                     }
 
-                    CurrentUsernameToolStripMenuItem.Text = usernamePlaceholder + newUsername;
+                    CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
                     Settings.Default.CurrentUsername = newUsername;
                     Account.Name = newUsername;
                 }
@@ -168,6 +165,8 @@ namespace BluetoothChat.UI
                     }
                     else
                     {
+                        BtnSend.Enabled = false;
+
                         // Create a chat message and pass it to all clients
                         ChatMessage message = new ChatMessage()
                         {
@@ -183,16 +182,19 @@ namespace BluetoothChat.UI
                         }
                         else if (server.IsRunning && appMode == AppMode.Host)
                         {
+                            // Server is the one who sends this message
                             message.MessageType = MessageType.ServerMessage;
                             await server.SendMessageToClientsAsync(message);
                         }
+
+                        BtnSend.Enabled = true;
                     }
                     ClearInputText();
                 }
             }
             catch (Exception ex)
             {
-                AppendConsoleText(ex.ToString());
+                AppendConsoleText($"[ERROR] Cannot send message: {ex.Message}");
             }
         }
 
@@ -283,36 +285,22 @@ namespace BluetoothChat.UI
             appMode = mode;
         }
 
+        public void RemoveChatMembers()
+        {
+            RunActionOnUI(() => LbxMembers.Items.Clear());
+        }
+
+        public void AddChatMembers(List<AppAccount> accounts)
+        {
+            foreach (AppAccount account in accounts)
+            {
+                AddChatMember(account);
+            }
+        }
+
         public void AddChatMember(AppAccount account)
         {
             RunActionOnUI(() => LbxMembers.Items.Add(account));
-        }
-
-        public void RemoveChatMember(AppAccount account)
-        {
-            RunActionOnUI(() =>
-            {
-                int index = FindMember(account);
-
-                if (index != -1)
-                {
-                    LbxMembers.Items.RemoveAt(index);
-                }
-            });
-        }
-
-        public void UpdateChatMember(AppAccount account)
-        {
-
-            RunActionOnUI(() =>
-            {
-                int index = FindMember(account);
-
-                if (index != -1)
-                {
-                    LbxMembers.Items[index] = account;
-                }
-            });
         }
 
         public string GetInputText()
@@ -351,23 +339,6 @@ namespace BluetoothChat.UI
             {
 
             }
-        }
-
-        private int FindMember(AppAccount account)
-        {
-            int index = -1;
-            int current = 0;
-            foreach (AppAccount appAccount in LbxMembers.Items)
-            {
-                if (appAccount.AccountId == account.AccountId)
-                {
-                    index = current;
-                    break;
-                }
-                current++;
-            }
-
-            return index;
         }
     }
 }

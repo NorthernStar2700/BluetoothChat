@@ -20,6 +20,8 @@ namespace BluetoothChat.UI
 
         private void FrmDeviceHistory_Load(object sender, EventArgs e)
         {
+            BtnCopy.Enabled = false;
+            BtnDelete.Enabled = false;
             if (string.IsNullOrWhiteSpace(deviceList))
             {
                 return;
@@ -37,6 +39,9 @@ namespace BluetoothChat.UI
                 {
                     LbxDevices.Items.Add(device);
                 }
+
+                BtnCopy.Enabled = true;
+                BtnDelete.Enabled = true;
             }
             catch (Exception)
             {
@@ -79,7 +84,10 @@ namespace BluetoothChat.UI
 
         private void LbxDevices_DoubleClick(object sender, EventArgs e)
         {
-            BtnCopy.PerformClick();
+            if (BtnCopy.Enabled)
+            {
+                BtnCopy.PerformClick();
+            }
         }
     }
 }

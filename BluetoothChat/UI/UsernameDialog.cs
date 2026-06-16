@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Windows.Forms;
+using BluetoothChat.Constants;
 
 namespace BluetoothChat.UI
 {
@@ -16,7 +17,7 @@ namespace BluetoothChat.UI
 
         private void FrmUsernameDialog_Load(object sender, EventArgs e)
         {
-            LblCurrentUsername.Text = $"Current Username: {currentUsername}";
+            LblCurrentUsername.Text = $"{UIMessages.UsernameMessage}{currentUsername}";
             AcceptButton = BtnOk;
             CancelButton = BtnCancel;
         }

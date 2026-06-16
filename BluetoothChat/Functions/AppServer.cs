@@ -1,16 +1,17 @@
-﻿using BluetoothChat.Constants;
-using BluetoothChat.Enums;
-using BluetoothChat.Models;
-using BluetoothChat.UI;
-using BluetoothChat.Utilities;
-using InTheHand.Net.Sockets;
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
+using BluetoothChat.Constants;
+using BluetoothChat.Enums;
+using BluetoothChat.Models;
+using BluetoothChat.UI;
+using BluetoothChat.Utilities;
+using InTheHand.Net.Sockets;
+using Newtonsoft.Json;
 
 namespace BluetoothChat.Functions
 {
@@ -47,6 +48,7 @@ namespace BluetoothChat.Functions
             try
             {
                 listener.Start();
+                app.Account.InitializeAccountId();
             }
             catch (Exception e)
             {
@@ -61,6 +63,7 @@ namespace BluetoothChat.Functions
             app.SetConnectedCheckbox(true);
             IsRunning = true;
             app.AddChatMember(app.Account);
+            accounts.Add(app.Account);
             sessionTask = Task.Run(() => HostSession(cancelToken.Token));
         }
 
@@ -151,34 +154,42 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    await SendMessageToClientsAsync(chat);
 
                     switch (chat.MessageType)
                     {
                         case MessageType.Join:
-                            AppAccount joinAcc = new AppAccount()
+                            chat.Content = $">> [{chat.SenderName}] has joined the server";
+                            AppAccount account = new AppAccount()
                             {
                                 Name = chat.SenderName,
-                                AccountId = chat.SenderId,
+                                AccountId = chat.SenderId
                             };
-                            accounts.Add(joinAcc);
-                            app.AddChatMember(joinAcc);
-                            await SendJoinMessageToClientAsync(stream);
+                            accounts.Add(account);
+                            await SendMemberListToClientsAsync(accounts, app.Account);
                             break;
                         case MessageType.Leave:
-                            AppAccount leaveAcc = accounts.First(acc => acc.AccountId == chat.SenderId);
-                            accounts.Remove(leaveAcc);
-                            app.RemoveChatMember(leaveAcc);
+                            chat.Content = $">> [{chat.SenderName}] has left the server";
+                            AppAccount leaveAcc = accounts.FirstOrDefault(
+                                acc => (acc.Name == chat.SenderName) && (acc.AccountId == chat.SenderId));
+                            if (leaveAcc != null)
+                            {
+                                accounts.Remove(leaveAcc);
+                            }
+                            await SendMemberListToClientsAsync(accounts, app.Account);
                             break;
                         case MessageType.UsernameChange:
-                            AppAccount updateAcc = new AppAccount()
+                            chat.Content = $">> [{chat.SenderName}] has left the server";
+                            AppAccount foundAccount = accounts.FirstOrDefault(
+                                acc => (acc.AccountId == chat.SenderId));
+                            if (foundAccount != null)
                             {
-                                Name = chat.SenderName,
-                                AccountId = chat.SenderId,
-                            };
-                            app.UpdateChatMember(updateAcc);
+                                foundAccount.Name = chat.SenderName;
+                            }
+                            await SendMemberListToClientsAsync(accounts, app.Account);
                             break;
                     }
+
+                    await SendMessageToClientsAsync(chat);
                 }
             }
             catch (OperationCanceledException)
@@ -205,22 +216,25 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
+            // Any modifications or displays before passing message to clients
             string message = string.Empty;
             switch (chat.MessageType)
             {
-                case MessageType.ServerMessage:
+                case MessageType.Chat:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{chat.SenderName}]: {chat.Content}"));
                     break;
                 case MessageType.Join:
-                    message = $">> [{chat.SenderName}] joined the server";
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message));
-                    break;
                 case MessageType.Leave:
-                    message = $">> [{chat.SenderName}] left the server";
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message));
-                    break;
                 case MessageType.UsernameChange:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(chat.Content));
+                    break;
+                case MessageType.ServerMessage:
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{chat.SenderName}]: {chat.Content}"));
+                    break;
+                case MessageType.MemberList:
+                    chat.Content = JsonConvert.SerializeObject(accounts);
+                    app.RemoveChatMembers();
+                    app.AddChatMembers(accounts);
                     break;
             }
 
@@ -241,7 +255,7 @@ namespace BluetoothChat.Functions
                 }
                 catch (Exception e)
                 {
-                    app.AppendConsoleText($"{e.Message}");
+                    app.AppendConsoleText($"[ERROR] Client send error: {e.Message}");
                 }
             });
 
@@ -251,27 +265,27 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.AppendConsoleText($"{e.Message}");
+                app.AppendConsoleText($"[ERROR] Task error: {e.Message}");
             }
         }
 
-        public async Task SendJoinMessageToClientAsync(NetworkStream stream)
+        public async Task SendMemberListToClientsAsync(List<AppAccount> accounts, AppAccount serverAccount)
         {
             try
             {
                 ChatMessage chat = new ChatMessage()
                 {
                     MessageType = MessageType.MemberList,
-                    SenderName = app.Account.Name,
-                    SenderId = app.Account.AccountId,
-                    Content = ChatProtocol.SerializeAccountMembers(app.GetAppAccounts()),
+                    SenderName = serverAccount.Name,
+                    SenderId = serverAccount.AccountId,
+                    Content = JsonConvert.SerializeObject(accounts)
                 };
 
-                await ChatProtocol.SendAsync(stream, chat);
+                await SendMessageToClientsAsync(chat);
             }
-            catch (Exception)
+            catch (Exception e)
             {
-
+                app.AppendConsoleText($"[ERROR] Unable to send member list to clients: {e.Message}");
             }
         }
 

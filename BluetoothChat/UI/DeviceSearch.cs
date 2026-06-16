@@ -15,30 +15,40 @@ namespace BluetoothChat.UI
         private const string searchText = "Searching...";
         private const string searchCompleteText = "Search complete";
         private const string searchErrorText = "Error finding devices. Try scanning again";
-        private List<Device> deviceList;
+        private string deviceList;
+        private List<Device> devices;
 
         public FrmDeviceSearch(string deviceList)
         {
             InitializeComponent();
-            List<Device> devices = (List<Device>) JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
-            if (devices != null && devices.Count > 0)
-            {
-                this.deviceList = devices;
-            }
-            else
-            {
-                this.deviceList = new List<Device>();
-            }
+            this.deviceList = deviceList;
         }
 
         private void FrmDeviceSearch_Load(object sender, EventArgs e)
         {
+            BtnCopy.Enabled = false;
+            try
+            {
+                List<Device> devices = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
+                if (devices != null && devices.Count > 0)
+                {
+                    this.devices = devices;
+                }
+                else
+                {
+                    this.devices = new List<Device>();
+                }
+            }
+            catch (Exception)
+            {
+
+            }
             _ = SearchForDevicesAsync();
         }
 
         private void FrmDeviceSearch_FormClosed(object sender, FormClosedEventArgs e)
         {
-            Settings.Default.DeviceHistory = JsonConvert.SerializeObject(deviceList);
+            Settings.Default.DeviceHistory = JsonConvert.SerializeObject(devices);
             Settings.Default.Save();
         }
 
@@ -65,16 +75,19 @@ namespace BluetoothChat.UI
                 MessageBoxIcon.Information);
 
             // Save to history if entry does not exist
-            Device deviceExists = deviceList.FirstOrDefault(dev => (dev.Name == device.Name) && (dev.Address == device.Address));
+            Device deviceExists = devices.FirstOrDefault(dev => (dev.Name == device.Name) && (dev.Address == device.Address));
             if (deviceExists == null)
             {
-                deviceList.Add(device);
+                devices.Add(device);
             }
         }
 
         private void LbxDevices_DoubleClick(object sender, EventArgs e)
         {
-            BtnCopy.PerformClick();
+            if (BtnCopy.Enabled)
+            {
+                BtnCopy.PerformClick();
+            }
         }
 
         private async Task SearchForDevicesAsync()
@@ -109,6 +122,7 @@ namespace BluetoothChat.UI
                 }
 
                 LblSearch.Text = searchCompleteText;
+                BtnCopy.Enabled = true;
             }
             catch (Exception)
             {

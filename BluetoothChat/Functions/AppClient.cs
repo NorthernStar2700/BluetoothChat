@@ -33,8 +33,8 @@ namespace BluetoothChat.Functions
             BluetoothAddress address;
             try
             {
-                address = BluetoothAddress.Parse(app.GetInputText());
                 app.SetSendButtonEnabled(false);
+                address = BluetoothAddress.Parse(app.GetInputText());
             }
             catch (Exception)
             {
@@ -123,51 +123,26 @@ namespace BluetoothChat.Functions
                     switch (response.MessageType) 
                     {
                         case MessageType.Chat:
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{response.SenderName}]: {response.Content}"));
                             break;
                         case MessageType.Join:
-                            AppAccount joinAcc = new AppAccount()
-                            {
-                                Name = response.SenderName,
-                                AccountId = response.SenderId,
-                            };
-                            app.AddChatMember(joinAcc);
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
-                            break;
                         case MessageType.Leave:
-                            AppAccount leaveAcc = new AppAccount()
-                            {
-                                Name = response.SenderName,
-                                AccountId = response.SenderId,
-                            };
-                            app.RemoveChatMember(leaveAcc);
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
-                            break;
                         case MessageType.UsernameChange:
-                            AppAccount updateAcc = new AppAccount()
-                            {
-                                Name = response.SenderName,
-                                AccountId = response.SenderId,
-                            };
-                            app.UpdateChatMember(updateAcc);
                             app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
                             break;
                         case MessageType.ServerMessage:
+                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{response.SenderName}]: {response.Content}"));
                             break;
                         case MessageType.MemberList:
-                            // Used for the server sending all currently connected members when the client first joins
-                            // Then management of each member happens as usual
-                            try
+                           try
                             {
                                 List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Content);
-                                foreach (AppAccount account in accounts)
-                                {
-                                    app.AddChatMember(account);
-                                }
+                                app.RemoveChatMembers();
+                                app.AddChatMembers(accounts);
                             }
                             catch (Exception e)
                             {
-                                app.AppendConsoleText($"{e}");
+                                app.AppendConsoleText($"[ERROR] Message read error: {e.Message}");
                             }
                             break;
                     }
