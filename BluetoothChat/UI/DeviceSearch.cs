@@ -54,7 +54,6 @@ namespace BluetoothChat.UI
 
         private void BtnRestart_Click(object sender, EventArgs e)
         {
-            BtnRestart.Enabled = false;
             LbxDevices.Items.Clear();
             _ = SearchForDevicesAsync();
         }
@@ -94,6 +93,7 @@ namespace BluetoothChat.UI
         {
             LblSearch.Text = searchText;
             BtnRestart.Enabled = false;
+            BtnCopy.Enabled = false;
 
             try
             {

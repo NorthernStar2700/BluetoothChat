@@ -134,7 +134,7 @@ namespace BluetoothChat.Functions
                             app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{response.SenderName}]: {response.Content}"));
                             break;
                         case MessageType.MemberList:
-                           try
+                            try
                             {
                                 List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Content);
                                 app.RemoveChatMembers();

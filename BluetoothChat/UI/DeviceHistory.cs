@@ -65,6 +65,12 @@ namespace BluetoothChat.UI
             string newList = JsonConvert.SerializeObject(LbxDevices.Items.OfType<Device>().ToList());
             Settings.Default.DeviceHistory = newList;
             Settings.Default.Save();
+
+            if (newList == "[]") 
+            {
+                BtnCopy.Enabled = false;
+                BtnDelete.Enabled = false;
+            }
         }
 
         private void BtnCopy_Click(object sender, EventArgs e)

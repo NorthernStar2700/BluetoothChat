@@ -37,6 +37,7 @@ namespace BluetoothChat.UI
 
         private void FrmBluetoothChat_Load(object sender, EventArgs e)
         {
+            TxtInput.Enabled = false;
             if (string.IsNullOrWhiteSpace(Account.Name))
             {
                 Account.Name = Environment.MachineName;
@@ -124,7 +125,9 @@ namespace BluetoothChat.UI
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
-                    message.MessageType = MessageType.ServerMessage;
+                    message.MessageType = MessageType.UsernameChange;
+                    message.Content = $"[HOST] {message.Content}";
+                    message = await server.AdjustChatMessage(message);
                     await server.SendMessageToClientsAsync(message);
                 }
             }
@@ -184,6 +187,7 @@ namespace BluetoothChat.UI
                         {
                             // Server is the one who sends this message
                             message.MessageType = MessageType.ServerMessage;
+                            message = await server.AdjustChatMessage(message);
                             await server.SendMessageToClientsAsync(message);
                         }
 
@@ -224,6 +228,7 @@ namespace BluetoothChat.UI
         private void ConnectToServerPrompt()
         {
             appMode = AppMode.Client;
+            TxtInput.Enabled = true;
             RtbConsole.Clear();
             RtbConsole.Text = UIMessages.BluetoothPrompt;
         }
@@ -231,6 +236,7 @@ namespace BluetoothChat.UI
         private void CreateServerPrompt()
         {
             appMode = AppMode.Host;
+            TxtInput.Enabled = true;
             RtbConsole.Clear();
             server.Start();
         }
@@ -252,6 +258,7 @@ namespace BluetoothChat.UI
                 LbxMembers.Items.Clear();
                 BtnSend.Enabled = true;
                 ChkConnected.Checked = false;
+                TxtInput.Enabled = false;
             });
         }
 
