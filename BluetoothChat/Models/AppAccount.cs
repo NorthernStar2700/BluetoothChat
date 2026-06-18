@@ -9,7 +9,7 @@ namespace BluetoothChat.Models
 
         public void InitializeAccountId()
         {
-            if (!string.IsNullOrWhiteSpace(AccountId))
+            if (string.IsNullOrWhiteSpace(AccountId))
             {
                 AccountId = Guid.NewGuid().ToString();
             }

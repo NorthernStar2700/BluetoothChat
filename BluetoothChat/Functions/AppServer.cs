@@ -191,9 +191,9 @@ namespace BluetoothChat.Functions
                 {
                     await ChatProtocol.SendAsync(client.GetStream(), chat);
                 }
-                catch (Exception e)
+                catch (Exception)
                 {
-                    app.AppendConsoleText($"[ERROR] Client send error: {e.Message}");
+                    RemoveClient(client);
                 }
             });
 

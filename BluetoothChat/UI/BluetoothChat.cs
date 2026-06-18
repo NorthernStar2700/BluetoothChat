@@ -256,6 +256,7 @@ namespace BluetoothChat.UI
                 RtbConsole.Clear();
                 RtbConsole.Text = UIMessages.ConsolePrompt;
                 LbxMembers.Items.Clear();
+                TxtInput.Clear();
                 BtnSend.Enabled = true;
                 ChkConnected.Checked = false;
                 TxtInput.Enabled = false;
