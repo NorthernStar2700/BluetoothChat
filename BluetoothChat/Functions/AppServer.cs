@@ -1,17 +1,17 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
-using System.Net.Sockets;
-using System.Threading;
-using System.Threading.Tasks;
-using BluetoothChat.Constants;
+﻿using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Models;
 using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Net.Sockets;
+using System.Threading;
+using System.Threading.Tasks;
 
 namespace BluetoothChat.Functions
 {
@@ -20,9 +20,8 @@ namespace BluetoothChat.Functions
         public bool IsRunning { get; private set; }
 
         private readonly FrmBluetoothChat app;
-        private readonly object clientLock = new object();
-        private readonly List<BluetoothClient> clients = new List<BluetoothClient>();
-        private readonly List<AppAccount> accounts = new List<AppAccount>();
+        private readonly object sessionLock = new object();
+        private readonly List<ClientSession> sessions = new List<ClientSession>();
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
         private Task sessionTask;
@@ -63,7 +62,6 @@ namespace BluetoothChat.Functions
             app.SetConnectedCheckbox(true);
             IsRunning = true;
             app.AddChatMember(app.Account);
-            accounts.Add(app.Account);
             sessionTask = Task.Run(() => HostSession(cancelToken.Token));
         }
 
@@ -92,18 +90,18 @@ namespace BluetoothChat.Functions
                 app.AppendConsoleText($"{e.Message}"); 
             }
 
-            BluetoothClient[] clientCopy;
-            lock (clientLock)
+            ClientSession[] sessionCopy;
+            lock (sessionLock)
             {
-                clientCopy = clients.ToArray();
-                clients.Clear();
+                sessionCopy = sessions.ToArray();
+                sessions.Clear();
             }
 
-            foreach (BluetoothClient client in clientCopy)
+            foreach (ClientSession session in sessionCopy)
             {
                 try
                 {
-                    client.Dispose();
+                    session.Client.Dispose();
                 }
                 catch (Exception) 
                 {
@@ -120,10 +118,7 @@ namespace BluetoothChat.Functions
                 try
                 {
                     client = await Task.Run(() => listener.AcceptBluetoothClient());
-
                     NetworkStream stream = client.GetStream();
-
-                    AddClient(client);
                     _ = Task.Run(() => HandleClientAsync(client, stream, ct));
                 }
                 catch (IOException e) when (e.InnerException is SocketException socketEx && 
@@ -154,21 +149,21 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    chat = await AdjustChatMessage(chat);
+                    chat = await AdjustChatMessage(client, chat);
                     await SendMessageToClientsAsync(chat);
                 }
             }
             catch (OperationCanceledException)
             {
-
+                RemoveClientSession(client);
             }
             catch (IOException)
             {
-
+                RemoveClientSession(client);
             }
             catch (SocketException)
             {
-
+                RemoveClientSession(client);
             }
             catch (Exception e)
             {
@@ -176,24 +171,45 @@ namespace BluetoothChat.Functions
             }
             finally
             {
-                RemoveClient(client);
+                RemoveClientSession(client);
             }
         }
 
         public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
-            BluetoothClient[] clientCopy = GetClients();
+            List<ClientSession> sessionCopy = GetClientSessions();
 
             // Do all message sends concurrently, in case a client is slow
-            IEnumerable<Task> tasks = clientCopy.Select(async client =>
+            IEnumerable<Task> tasks = sessionCopy.Select(async session =>
             {
                 try
                 {
-                    await ChatProtocol.SendAsync(client.GetStream(), chat);
+                    await session.Lock.WaitAsync();
+
+                    try
+                    {
+                        await ChatProtocol.SendAsync(session.Stream, chat);
+                    }
+                    catch (IOException)
+                    {
+                        RemoveClientSession(session);
+                    }
+                    catch (ObjectDisposedException)
+                    {
+                        RemoveClientSession(session);
+                    }
+                    catch (SocketException)
+                    {
+                        RemoveClientSession(session);
+                    }
+                    finally
+                    {
+                        session.Lock.Release();
+                    }
                 }
                 catch (Exception)
                 {
-                    RemoveClient(client);
+                    RemoveClientSession(session);
                 }
             });
 
@@ -207,7 +223,7 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task<ChatMessage> AdjustChatMessage(ChatMessage message)
+        public async Task<ChatMessage> AdjustChatMessage(BluetoothClient client, ChatMessage message)
         {
             // Any modifications or displays before passing message to clients
             switch (message.MessageType)
@@ -217,28 +233,29 @@ namespace BluetoothChat.Functions
                     break;
                 case MessageType.Join:
                     message.Content = $">> [{message.SenderName}] has joined the server";
-                    AddAccount(message.SenderName, message.SenderId);
+                    AddClientSession(client, message.SenderName, message.SenderId);
 
-                    await SendMemberListToClientsAsync(accounts, app.Account);
+                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
                     break;
                 case MessageType.Leave:
                     message.Content = $">> [{message.SenderName}] has left the server";
-                    RemoveAccount(message.SenderId);
+                    RemoveClientSession(message.SenderId);
 
-                    await SendMemberListToClientsAsync(accounts, app.Account);
+                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
                     break;
                 case MessageType.UsernameChange:
                     UpdateAccountName(message.SenderName, message.SenderId);
 
-                    await SendMemberListToClientsAsync(accounts, app.Account);
+                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
                     break;
                 case MessageType.ServerMessage:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{message.SenderName}]: {message.Content}"));
                     break;
                 case MessageType.MemberList:
+                    List<AppAccount> accounts = GetAppAccounts();
                     message.Content = JsonConvert.SerializeObject(accounts);
                     app.RemoveChatMembers();
                     app.AddChatMembers(accounts);
@@ -259,7 +276,8 @@ namespace BluetoothChat.Functions
                     Content = JsonConvert.SerializeObject(accounts)
                 };
 
-                chat = await AdjustChatMessage(chat);
+                // MemberList sends a message to all ClientSessions
+                chat = await AdjustChatMessage(null, chat);
                 await SendMessageToClientsAsync(chat);
             }
             catch (Exception e)
@@ -268,71 +286,99 @@ namespace BluetoothChat.Functions
             }
         }
 
-        private void AddClient(BluetoothClient client)
+        private List<ClientSession> GetClientSessions()
         {
-            lock (clientLock)
+            lock (sessionLock)
             {
-                clients.Add(client);
+                return sessions;
             }
         }
 
-        private void RemoveClient(BluetoothClient client)
+        private List<AppAccount> GetAppAccounts()
         {
-            lock (clientLock)
+            lock (sessionLock)
             {
-                clients.Remove(client);
-            }
-
-            try
-            {
-                client?.Dispose();
-            }
-            catch (NullReferenceException)
-            {
-
-            }
-            catch (Exception)
-            {
-
+                List<AppAccount> accounts = new List<AppAccount>
+                {
+                    new AppAccount()
+                    {
+                        Name = app.Account.Name,
+                        AccountId = app.Account.AccountId
+                    }
+                };
+                accounts.AddRange(sessions
+                    .Where(ses => ses.Account != null)
+                    .Select(ses => ses.Account)
+                    .ToList());
+                return accounts;
             }
         }
 
-        private BluetoothClient[] GetClients()
+        private void AddClientSession(BluetoothClient client, string name, string accountId)
         {
-            lock (clientLock)
+            ClientSession session = new ClientSession()
             {
-                return clients.ToArray();
-            }
-        }
-
-        private void AddAccount(string name, string accountId)
-        {
-            AppAccount account = new AppAccount()
-            {
-                Name = name,
-                AccountId = accountId
+                Account = new AppAccount()
+                {
+                    Name = name,
+                    AccountId = accountId
+                },
+                Client = client,
+                Stream = client.GetStream()
             };
-            accounts.Add(account);
+
+            lock (sessionLock)
+            {
+                sessions.Add(session);
+            }
         }
 
-        private void RemoveAccount(string accountId)
+        private void RemoveClientSession(ClientSession session)
         {
-            AppAccount leaveAcc = accounts.FirstOrDefault(
-                                acc => (acc.AccountId == accountId));
-            if (leaveAcc != null)
+            lock (sessionLock)
             {
-                accounts.Remove(leaveAcc);
+                sessions.Remove(session);
+            }
+        }
+
+        private void RemoveClientSession(BluetoothClient client)
+        {
+            ClientSession session = sessions.FirstOrDefault(ses => ses.Client == client);
+            if (session == null)
+            {
+                return;
+            }
+
+            lock (sessionLock)
+            {
+                sessions.Remove(session);
+            }
+        }
+
+        private void RemoveClientSession(string accountId)
+        {
+            ClientSession session = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
+            if (session == null)
+            {
+                return;
+            }
+
+            lock (sessionLock)
+            {
+                sessions.Remove(session);
             }
         }
         
         private void UpdateAccountName(string name, string accountId)
         {
-            AppAccount foundAccount = accounts.FirstOrDefault(
-                                acc => (acc.AccountId == accountId));
-            if (foundAccount != null)
+            ClientSession foundAccount = sessions.FirstOrDefault(
+                                ses => (ses.Account.AccountId == accountId));
+            if (foundAccount == null)
             {
-                foundAccount.Name = name;
+                return;
             }
+
+            foundAccount.Account.Name = name;
         }
     }
 }

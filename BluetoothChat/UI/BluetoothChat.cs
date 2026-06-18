@@ -127,7 +127,7 @@ namespace BluetoothChat.UI
                 {
                     message.MessageType = MessageType.UsernameChange;
                     message.Content = $"[HOST] {message.Content}";
-                    message = await server.AdjustChatMessage(message);
+                    message = await server.AdjustChatMessage(null, message);
                     await server.SendMessageToClientsAsync(message);
                 }
             }
@@ -187,7 +187,7 @@ namespace BluetoothChat.UI
                         {
                             // Server is the one who sends this message
                             message.MessageType = MessageType.ServerMessage;
-                            message = await server.AdjustChatMessage(message);
+                            message = await server.AdjustChatMessage(null, message);
                             await server.SendMessageToClientsAsync(message);
                         }
 

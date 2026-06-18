@@ -30,7 +30,7 @@ namespace BluetoothChat.Models
             }
             catch (Exception e)
             {
-                throw new IOException($"Write message error: {e.Message}");
+                throw new IOException($"Write message error: {e.Message}", e);
             }
         }
 
@@ -55,7 +55,7 @@ namespace BluetoothChat.Models
             }
             catch (Exception e)
             {
-                throw new IOException($"Read message error: {e.Message}");
+                throw new IOException($"Read message error: {e.Message}", e);
             }
         }
 
@@ -90,6 +90,10 @@ namespace BluetoothChat.Models
 
         private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
 
-        private static ChatMessage Deserialize(string json) => (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
+        private static ChatMessage Deserialize(string json)
+        {
+            ChatMessage message = (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
+            return message ?? throw new IOException("Invalid or empty chat message was passed in");
+        }
     }
 }
