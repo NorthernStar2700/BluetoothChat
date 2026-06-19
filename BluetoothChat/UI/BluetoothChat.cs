@@ -168,8 +168,7 @@ namespace BluetoothChat.UI
                     }
                     else
                     {
-                        BtnSend.Enabled = false;
-
+                        SetSendButtonEnabled(false);
                         // Create a chat message and pass it to all clients
                         ChatMessage message = new ChatMessage()
                         {
@@ -190,8 +189,7 @@ namespace BluetoothChat.UI
                             message = await server.AdjustChatMessage(null, message);
                             await server.SendMessageToClientsAsync(message);
                         }
-
-                        BtnSend.Enabled = true;
+                        SetSendButtonEnabled(true);
                     }
                     ClearInputText();
                 }

@@ -11,6 +11,7 @@ namespace BluetoothChat.Models
 {
     public static class ChatProtocol
     {
+        // A preset length for messages ensuring nothing goes beyond a certain point
         private const int MaxMessageLength = 64 * 1024; 
 
         public static async Task SendAsync(NetworkStream stream, ChatMessage message)
@@ -18,10 +19,11 @@ namespace BluetoothChat.Models
             
             try
             {
+                // Try to convert the message into JSON format
                 string json = Serialize(message);
                 byte[] messageData = Encoding.UTF8.GetBytes(json);
 
-                // HostToNetworkOrder helps with different platforms and message lengths
+                // HostToNetworkOrder is used as the clients will be sending data to the network (server)
                 byte[] lengthData = BitConverter.GetBytes(IPAddress.HostToNetworkOrder(messageData.Length));
 
                 // Tell the server the length of the message as well as the message itself
@@ -71,6 +73,7 @@ namespace BluetoothChat.Models
             while (totalRead < length)
             {
                 // This ReadInternalAsync is used for Mono compatability. We are on another thread
+                // Read bytes as they come in, return the total after
                 int bytesRead = await ReadInternalAsync(stream, buffer, totalRead, length - totalRead);
 
                 if (bytesRead == 0)

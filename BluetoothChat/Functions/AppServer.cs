@@ -105,7 +105,7 @@ namespace BluetoothChat.Functions
                 }
                 catch (Exception) 
                 {
-
+                    // Ignore
                 }
             }
         }
@@ -119,6 +119,7 @@ namespace BluetoothChat.Functions
                 {
                     client = await Task.Run(() => listener.AcceptBluetoothClient());
                     NetworkStream stream = client.GetStream();
+
                     _ = Task.Run(() => HandleClientAsync(client, stream, ct));
                 }
                 catch (IOException e) when (e.InnerException is SocketException socketEx && 
@@ -148,6 +149,7 @@ namespace BluetoothChat.Functions
             {
                 while (!ct.IsCancellationRequested)
                 {
+                    // Read message, do formatting, then display the clients message back to all clients
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
                     chat = await AdjustChatMessage(client, chat);
                     await SendMessageToClientsAsync(chat);
@@ -179,7 +181,7 @@ namespace BluetoothChat.Functions
         {
             List<ClientSession> sessionCopy = GetClientSessions();
 
-            // Do all message sends concurrently, in case a client is slow
+            // Do all message sends concurrently in case a client is slow
             IEnumerable<Task> tasks = sessionCopy.Select(async session =>
             {
                 try
@@ -298,6 +300,7 @@ namespace BluetoothChat.Functions
         {
             lock (sessionLock)
             {
+                // Host account is added in here
                 List<AppAccount> accounts = new List<AppAccount>
                 {
                     new AppAccount()
@@ -371,8 +374,7 @@ namespace BluetoothChat.Functions
         
         private void UpdateAccountName(string name, string accountId)
         {
-            ClientSession foundAccount = sessions.FirstOrDefault(
-                                ses => (ses.Account.AccountId == accountId));
+            ClientSession foundAccount = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
             if (foundAccount == null)
             {
                 return;

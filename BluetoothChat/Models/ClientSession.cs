@@ -4,6 +4,7 @@ using System.Threading;
 
 namespace BluetoothChat.Models
 {
+    // A class for managing a user that connects within the application
     public class ClientSession
     {
         public AppAccount Account { get; set; }

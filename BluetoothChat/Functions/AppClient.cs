@@ -7,7 +7,6 @@ using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
-using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -15,12 +14,11 @@ namespace BluetoothChat.Functions
 {
     public class AppClient
     {
-        public BluetoothClient Client { get; private set; }
         public bool IsConnected { get; private set; }
 
         private readonly FrmBluetoothChat app;
+        private ClientSession session;
         private CancellationTokenSource cancelToken;
-        private NetworkStream stream;
 
         public AppClient(FrmBluetoothChat app)
         {
@@ -46,20 +44,24 @@ namespace BluetoothChat.Functions
 
             try
             {
-                Client = new BluetoothClient();
+                session = new ClientSession
+                {
+                    Account = app.Account,
+                    Client = new BluetoothClient()
+                };
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server"));
                 await Task.Run(() =>
                 {
-                    Client.Connect(address, BluetoothConstants.ServiceGuid);
-                    stream = Client.GetStream();
+                    session.Client.Connect(address, BluetoothConstants.ServiceGuid);
+                    session.Stream = session.Client.GetStream();
                 });
                 IsConnected = true;
             }
             catch (Exception ex)
             {
-                Client?.Close();
-                Client?.Dispose();
-                Client = null;
+                session?.Client?.Close();
+                session?.Client?.Dispose();
+                session = null;
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Error connecting to server: {ex.Message}"));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
@@ -94,18 +96,24 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToServer(ChatMessage message)
         {
-            if (!IsConnected || Client == null)
+            if (!IsConnected || session == null || session.Client == null || session.Stream == null)
             {
                 return;
             }
 
             try
             {
-                await ChatProtocol.SendAsync(stream, message);
+                await session.Lock.WaitAsync();
+
+                await ChatProtocol.SendAsync(session.Stream, message);
             }
             catch (Exception e)
             {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Unable to broadcast message: {e.Message}"));
+            }
+            finally
+            {
+                session.Lock.Release();
             }
         }
 
@@ -118,7 +126,7 @@ namespace BluetoothChat.Functions
                     if (!IsConnected)
                         return;
 
-                    ChatMessage response = await ChatProtocol.ReadAsync(stream);
+                    ChatMessage response = await ChatProtocol.ReadAsync(session.Stream);
 
                     switch (response.MessageType) 
                     {
@@ -150,7 +158,7 @@ namespace BluetoothChat.Functions
                 catch (Exception)
                 {
                     app.ResetUI();
-                    Client.Close();
+                    session.Client.Close();
                     IsConnected = false;
                     return;
                 }
@@ -199,7 +207,7 @@ namespace BluetoothChat.Functions
                 }
                 finally
                 {
-                    Client.Close();
+                    session.Client.Close();
                     IsConnected = false;
                 }
             }
