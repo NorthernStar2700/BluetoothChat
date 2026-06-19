@@ -149,10 +149,8 @@ namespace BluetoothChat.Functions
             {
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
-                    // Read message, do formatting, then display the clients message back to all clients
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    chat = await AdjustChatMessage(client, chat);
-                    await SendMessageToClientsAsync(chat);
+                    await ProcessChatMessage(client, chat);
                 }
             }
             catch (OperationCanceledException)
@@ -225,48 +223,89 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task<ChatMessage> AdjustChatMessage(BluetoothClient client, ChatMessage message)
+        public async Task ProcessChatMessage(BluetoothClient client, ChatMessage message)
+        {
+            // Adjust the content of a message (if the user joins or leaves)
+            message = PrepareChatMessage(message);
+
+            // Adjust the session list (if the user joins, leaves, or updates thier name)
+            await ModifyAndSendClientSessionList(client, message);
+
+            // Update the text or member list displayed to the host's UI
+            UpdateServerUIFromMessage(message);
+
+            // Sends the finalized message to the clients
+            await SendMessageToClientsAsync(message);
+        }
+
+        private ChatMessage PrepareChatMessage(ChatMessage message)
         {
             // Any modifications or displays before passing message to clients
+            switch (message.MessageType)
+            {
+                case MessageType.Join:
+                    message.Content = $">> [{message.SenderName}] has joined the server";
+                    break;
+                case MessageType.Leave:
+                    message.Content = $">> [{message.SenderName}] has left the server";
+                    break;
+                case MessageType.MemberList:
+                    List<AppAccount> accounts = GetAppAccounts();
+                    message.Content = ChatProtocol.SerializeAccountMembers(accounts);
+                    break;
+            }
+            return message;
+        }
+
+        private async Task ModifyAndSendClientSessionList(BluetoothClient client, ChatMessage message)
+        {
+            bool listAdjusted = false;
+            // In case a user joins, leaves, or changes their name update the session list appropriately
+            switch (message.MessageType)
+            {
+                case MessageType.Join:
+                    AddClientSession(client, message.SenderName, message.SenderId);
+                    listAdjusted = true;
+                    break;
+                case MessageType.Leave:
+                    RemoveClientSession(message.SenderId);
+                    listAdjusted = true;
+                    break;
+                case MessageType.UsernameChange:
+                    UpdateAccountName(message.SenderName, message.SenderId);
+                    listAdjusted = true;
+                    break;
+            }
+
+            if (listAdjusted)
+            {
+                List<AppAccount> accounts = GetAppAccounts();
+                await SendMemberListToClientsAsync(accounts, app.Account);
+            }
+        }
+
+        private void UpdateServerUIFromMessage(ChatMessage message)
+        {
+            // Displays a message to the host's UI or updates the member list
             switch (message.MessageType)
             {
                 case MessageType.Chat:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{message.SenderName}]: {message.Content}"));
                     break;
                 case MessageType.Join:
-                    message.Content = $">> [{message.SenderName}] has joined the server";
-                    AddClientSession(client, message.SenderName, message.SenderId);
-
-                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
-                    break;
                 case MessageType.Leave:
-                    message.Content = $">> [{message.SenderName}] has left the server";
-                    RemoveClientSession(message.SenderId);
-
-                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
-                    break;
                 case MessageType.UsernameChange:
-                    UpdateAccountName(message.SenderName, message.SenderId);
-
-                    await SendMemberListToClientsAsync(GetAppAccounts(), app.Account);
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(message.Content));
+                    List<AppAccount> accounts = GetAppAccounts();
+                    app.ReplaceChatMembers(accounts);
                     break;
                 case MessageType.ServerMessage:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{message.SenderName}]: {message.Content}"));
                     break;
-                case MessageType.MemberList:
-                    List<AppAccount> accounts = GetAppAccounts();
-                    message.Content = JsonConvert.SerializeObject(accounts);
-                    app.RemoveChatMembers();
-                    app.AddChatMembers(accounts);
-                    break;
             }
-            return message;
         }
 
-        public async Task SendMemberListToClientsAsync(List<AppAccount> accounts, AppAccount serverAccount)
+        private async Task SendMemberListToClientsAsync(List<AppAccount> accounts, AppAccount serverAccount)
         {
             try
             {
@@ -279,7 +318,7 @@ namespace BluetoothChat.Functions
                 };
 
                 // MemberList sends a message to all ClientSessions
-                chat = await AdjustChatMessage(null, chat);
+                chat = PrepareChatMessage(chat);
                 await SendMessageToClientsAsync(chat);
             }
             catch (Exception e)

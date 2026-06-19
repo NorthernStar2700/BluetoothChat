@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using BluetoothChat.Models;
@@ -91,24 +92,19 @@ namespace BluetoothChat.UI
 
         private async Task SearchForDevicesAsync()
         {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+            {
+                return;
+            }
+
             LblSearch.Text = searchText;
             BtnRestart.Enabled = false;
             BtnCopy.Enabled = false;
 
             try
             {
-                List<BluetoothDeviceInfo> devices = await Task.Run(() =>
-                {
-                    using (BluetoothClient client = new BluetoothClient())
-                    {
-                        return client.DiscoverDevices().ToList();
-                    }
-                });
-
-                if (IsDisposed || Disposing || !IsHandleCreated)
-                {
-                    return;
-                }
+                BluetoothClient client = new BluetoothClient();
+                List<BluetoothDeviceInfo> devices = await Task.Run(() => client.DiscoverDevices().ToList());
 
                 foreach (BluetoothDeviceInfo device in devices)
                 {
@@ -122,6 +118,8 @@ namespace BluetoothChat.UI
                 }
 
                 LblSearch.Text = searchCompleteText;
+                client.Close();
+                client.Dispose();
 
                 if (devices.Count > 0)
                 {

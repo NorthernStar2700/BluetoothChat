@@ -1,13 +1,14 @@
-﻿using System;
+﻿using BluetoothChat.Models;
+using Newtonsoft.Json;
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading.Tasks;
-using Newtonsoft.Json;
 
-namespace BluetoothChat.Models
+namespace BluetoothChat.Functions
 {
     public static class ChatProtocol
     {
@@ -16,7 +17,11 @@ namespace BluetoothChat.Models
 
         public static async Task SendAsync(NetworkStream stream, ChatMessage message)
         {   
-            
+            if (stream == null || message == null || !stream.CanWrite)
+            {
+                throw new IOException("Cannot write to client");
+            }
+
             try
             {
                 // Try to convert the message into JSON format
@@ -38,6 +43,11 @@ namespace BluetoothChat.Models
 
         public static async Task<ChatMessage> ReadAsync(NetworkStream stream)
         {
+            if (stream == null || !stream.CanRead)
+            {
+                throw new IOException("Cannot read from client");
+            }
+
             try
             {
                 // 4 is used as a length buffer
@@ -63,7 +73,11 @@ namespace BluetoothChat.Models
 
         public static string SerializeAccountMembers(List<AppAccount> accounts) => JsonConvert.SerializeObject(accounts);
 
-        public static List<AppAccount> DeserializeAccountMembers(string json) => (List<AppAccount>) JsonConvert.DeserializeObject(json, typeof(List<AppAccount>));
+        public static List<AppAccount> DeserializeAccountMembers(string json) 
+        {
+            List<AppAccount> accounts = JsonConvert.DeserializeObject<List<AppAccount>>(json);
+            return accounts ?? throw new IOException("Invalid or empty member list was passed in");
+        }
 
         private static async Task<byte[]> ReadBytesAsync(NetworkStream stream, int length)
         {
@@ -95,7 +109,7 @@ namespace BluetoothChat.Models
 
         private static ChatMessage Deserialize(string json)
         {
-            ChatMessage message = (ChatMessage) JsonConvert.DeserializeObject(json, typeof(ChatMessage));
+            ChatMessage message = JsonConvert.DeserializeObject<ChatMessage>(json);
             return message ?? throw new IOException("Invalid or empty chat message was passed in");
         }
     }

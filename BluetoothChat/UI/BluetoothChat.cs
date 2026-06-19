@@ -127,8 +127,7 @@ namespace BluetoothChat.UI
                 {
                     message.MessageType = MessageType.UsernameChange;
                     message.Content = $"[HOST] {message.Content}";
-                    message = await server.AdjustChatMessage(null, message);
-                    await server.SendMessageToClientsAsync(message);
+                    await server.ProcessChatMessage(null, message);
                 }
             }
         }
@@ -188,8 +187,7 @@ namespace BluetoothChat.UI
                             {
                                 // Server is the one who sends this message
                                 message.MessageType = MessageType.ServerMessage;
-                                message = await server.AdjustChatMessage(null, message);
-                                await server.SendMessageToClientsAsync(message);
+                                await server.ProcessChatMessage(null, message);
                             }
                         }
                         finally
@@ -297,15 +295,11 @@ namespace BluetoothChat.UI
             appMode = mode;
         }
 
-        public void RemoveChatMembers()
-        {
-            RunActionOnUI(() => LbxMembers.Items.Clear());
-        }
-
-        public void AddChatMembers(List<AppAccount> accounts)
+        public void ReplaceChatMembers(List<AppAccount> accounts)
         {
             RunActionOnUI(() =>
             {
+                LbxMembers.Items.Clear();
                 foreach (AppAccount account in accounts)
                 {
                     LbxMembers.Items.Add(account);

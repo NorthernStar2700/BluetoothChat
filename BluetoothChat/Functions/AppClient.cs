@@ -101,9 +101,11 @@ namespace BluetoothChat.Functions
                 return;
             }
 
+            bool lockActivated = false;
             try
             {
                 await session.SendLock.WaitAsync();
+                lockActivated = true;
 
                 await ChatProtocol.SendAsync(session.Stream, message);
             }
@@ -113,7 +115,10 @@ namespace BluetoothChat.Functions
             }
             finally
             {
-                session.SendLock.Release();
+                if (lockActivated)
+                {
+                    session.SendLock.Release();
+                }
             }
         }
 
@@ -146,8 +151,7 @@ namespace BluetoothChat.Functions
                             try
                             {
                                 List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Content);
-                                app.RemoveChatMembers();
-                                app.AddChatMembers(accounts);
+                                app.ReplaceChatMembers(accounts);
                             }
                             catch (Exception e)
                             {
