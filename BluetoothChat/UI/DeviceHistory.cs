@@ -30,7 +30,7 @@ namespace BluetoothChat.UI
             try
             {
                 List<Device> devices = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
-                if (devices.Count == 0)
+                if (devices == null || devices.Count == 0)
                 {
                     return;
                 }
@@ -66,7 +66,7 @@ namespace BluetoothChat.UI
             Settings.Default.DeviceHistory = newList;
             Settings.Default.Save();
 
-            if (newList == "[]") 
+            if (LbxDevices.Items.Count == 0) 
             {
                 BtnCopy.Enabled = false;
                 BtnDelete.Enabled = false;

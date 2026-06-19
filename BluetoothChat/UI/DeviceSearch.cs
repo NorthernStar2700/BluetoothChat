@@ -41,7 +41,7 @@ namespace BluetoothChat.UI
             }
             catch (Exception)
             {
-
+                devices = new List<Device>();
             }
             _ = SearchForDevicesAsync();
         }
@@ -122,7 +122,11 @@ namespace BluetoothChat.UI
                 }
 
                 LblSearch.Text = searchCompleteText;
-                BtnCopy.Enabled = true;
+
+                if (devices.Count > 0)
+                {
+                    BtnCopy.Enabled = true;
+                }
             }
             catch (Exception)
             {

@@ -241,7 +241,7 @@
             this.MinimumSize = new System.Drawing.Size(816, 486);
             this.Name = "FrmBluetoothChat";
             this.Text = "Bluetooth Chat";
-            this.FormClosed += new System.Windows.Forms.FormClosedEventHandler(this.FrmBluetoothChat_FormClosed);
+            this.FormClosing += new System.Windows.Forms.FormClosingEventHandler(this.FrmBluetoothChat_FormClosing);
             this.Load += new System.EventHandler(this.FrmBluetoothChat_Load);
             this.menuStrip1.ResumeLayout(false);
             this.menuStrip1.PerformLayout();

@@ -147,7 +147,7 @@ namespace BluetoothChat.Functions
         {
             try
             {
-                while (!ct.IsCancellationRequested)
+                while (!ct.IsCancellationRequested && IsRunning)
                 {
                     // Read message, do formatting, then display the clients message back to all clients
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
@@ -179,14 +179,14 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
-            List<ClientSession> sessionCopy = GetClientSessions();
+            ClientSession[] sessionCopy = GetClientSessions();
 
             // Do all message sends concurrently in case a client is slow
             IEnumerable<Task> tasks = sessionCopy.Select(async session =>
             {
                 try
                 {
-                    await session.Lock.WaitAsync();
+                    await session.SendLock.WaitAsync();
 
                     try
                     {
@@ -206,7 +206,7 @@ namespace BluetoothChat.Functions
                     }
                     finally
                     {
-                        session.Lock.Release();
+                        session.SendLock.Release();
                     }
                 }
                 catch (Exception)
@@ -288,11 +288,11 @@ namespace BluetoothChat.Functions
             }
         }
 
-        private List<ClientSession> GetClientSessions()
+        private ClientSession[] GetClientSessions()
         {
             lock (sessionLock)
             {
-                return sessions;
+                return sessions.ToArray();
             }
         }
 
@@ -341,46 +341,52 @@ namespace BluetoothChat.Functions
             lock (sessionLock)
             {
                 sessions.Remove(session);
+                session.Dispose();
             }
         }
 
         private void RemoveClientSession(BluetoothClient client)
         {
-            ClientSession session = sessions.FirstOrDefault(ses => ses.Client == client);
-            if (session == null)
-            {
-                return;
-            }
-
             lock (sessionLock)
             {
+                ClientSession session = sessions.FirstOrDefault(ses => ses.Client == client);
+                if (session == null)
+                {
+                    return;
+                }
+
                 sessions.Remove(session);
+                session.Dispose();
             }
         }
 
         private void RemoveClientSession(string accountId)
         {
-            ClientSession session = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
-            if (session == null)
-            {
-                return;
-            }
-
             lock (sessionLock)
             {
+                ClientSession session = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
+                if (session == null)
+                {
+                    return;
+                }
+
                 sessions.Remove(session);
+                session.Dispose();
             }
         }
         
         private void UpdateAccountName(string name, string accountId)
         {
-            ClientSession foundAccount = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
-            if (foundAccount == null)
+            lock (sessionLock)
             {
-                return;
-            }
+                ClientSession foundAccount = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
+                if (foundAccount == null)
+                {
+                    return;
+                }
 
-            foundAccount.Account.Name = name;
+                foundAccount.Account.Name = name;
+            }
         }
     }
 }

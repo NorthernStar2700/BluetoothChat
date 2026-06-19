@@ -47,7 +47,7 @@ namespace BluetoothChat.UI
             CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + Account.Name;
         }
 
-        private async void FrmBluetoothChat_FormClosed(object sender, FormClosedEventArgs e)
+        private async void FrmBluetoothChat_FormClosing(object sender, FormClosingEventArgs e)
         {
             Settings.Default.Save();
 
@@ -168,28 +168,34 @@ namespace BluetoothChat.UI
                     }
                     else
                     {
-                        SetSendButtonEnabled(false);
-                        // Create a chat message and pass it to all clients
-                        ChatMessage message = new ChatMessage()
+                        try
                         {
-                            MessageType = MessageType.Chat,
-                            SenderName = Account.Name,
-                            SenderId = Account.AccountId,
-                            Content = TxtInput.Text.Trim()
-                        };
+                            SetSendButtonEnabled(false);
+                            // Create a chat message and pass it to all clients
+                            ChatMessage message = new ChatMessage()
+                            {
+                                MessageType = MessageType.Chat,
+                                SenderName = Account.Name,
+                                SenderId = Account.AccountId,
+                                Content = TxtInput.Text.Trim()
+                            };
 
-                        if (client.IsConnected && appMode == AppMode.Client)
-                        {
-                            await client.SendMessageToServer(message);
+                            if (client.IsConnected && appMode == AppMode.Client)
+                            {
+                                await client.SendMessageToServer(message);
+                            }
+                            else if (server.IsRunning && appMode == AppMode.Host)
+                            {
+                                // Server is the one who sends this message
+                                message.MessageType = MessageType.ServerMessage;
+                                message = await server.AdjustChatMessage(null, message);
+                                await server.SendMessageToClientsAsync(message);
+                            }
                         }
-                        else if (server.IsRunning && appMode == AppMode.Host)
+                        finally
                         {
-                            // Server is the one who sends this message
-                            message.MessageType = MessageType.ServerMessage;
-                            message = await server.AdjustChatMessage(null, message);
-                            await server.SendMessageToClientsAsync(message);
+                            SetSendButtonEnabled(true);
                         }
-                        SetSendButtonEnabled(true);
                     }
                     ClearInputText();
                 }
@@ -298,10 +304,13 @@ namespace BluetoothChat.UI
 
         public void AddChatMembers(List<AppAccount> accounts)
         {
-            foreach (AppAccount account in accounts)
+            RunActionOnUI(() =>
             {
-                AddChatMember(account);
-            }
+                foreach (AppAccount account in accounts)
+                {
+                    LbxMembers.Items.Add(account);
+                }
+            });
         }
 
         public void AddChatMember(AppAccount account)
@@ -312,11 +321,6 @@ namespace BluetoothChat.UI
         public string GetInputText()
         {
             return TxtInput.Text;
-        }
-
-        public List<AppAccount> GetAppAccounts()
-        {
-            return LbxMembers.Items.OfType<AppAccount>().ToList();
         }
 
         private void RunActionOnUI(Action action)
@@ -339,11 +343,15 @@ namespace BluetoothChat.UI
             }
             catch (IOException)
             {
-
+                // Ignore
             }
             catch (ObjectDisposedException)
             {
-
+                // Ignore
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore
             }
         }
     }

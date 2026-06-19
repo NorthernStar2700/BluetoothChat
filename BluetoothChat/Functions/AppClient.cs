@@ -103,7 +103,7 @@ namespace BluetoothChat.Functions
 
             try
             {
-                await session.Lock.WaitAsync();
+                await session.SendLock.WaitAsync();
 
                 await ChatProtocol.SendAsync(session.Stream, message);
             }
@@ -113,7 +113,7 @@ namespace BluetoothChat.Functions
             }
             finally
             {
-                session.Lock.Release();
+                session.SendLock.Release();
             }
         }
 
@@ -124,10 +124,11 @@ namespace BluetoothChat.Functions
                 try
                 {
                     if (!IsConnected)
+                    {
                         return;
+                    }
 
                     ChatMessage response = await ChatProtocol.ReadAsync(session.Stream);
-
                     switch (response.MessageType) 
                     {
                         case MessageType.Chat:
