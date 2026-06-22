@@ -24,7 +24,6 @@ namespace BluetoothChat.Functions
         private readonly List<ClientSession> sessions = new List<ClientSession>();
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
-        private Task sessionTask;
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -62,7 +61,7 @@ namespace BluetoothChat.Functions
             app.SetConnectedCheckbox(true);
             IsRunning = true;
             app.AddChatMember(app.Account);
-            sessionTask = Task.Run(() => HostSession(cancelToken.Token));
+            Task.Run(() => HostSession(cancelToken.Token));
         }
 
         public void Stop()
@@ -73,7 +72,6 @@ namespace BluetoothChat.Functions
             try
             {
                 cancelToken?.Cancel();
-                cancelToken?.Dispose();
             }
             catch (Exception e) 
             {
@@ -101,18 +99,27 @@ namespace BluetoothChat.Functions
             {
                 try
                 {
-                    session.Client.Dispose();
+                    session.Dispose();
                 }
                 catch (Exception) 
                 {
                     // Ignore
                 }
             }
+
+            try
+            {
+                cancelToken?.Dispose();
+            }
+            catch (Exception)
+            {
+                // Ignore
+            }
         }
 
         private async Task HostSession(CancellationToken ct)
         {
-            while (!ct.IsCancellationRequested)
+            while (!ct.IsCancellationRequested && IsRunning)
             {
                 BluetoothClient client;
                 try
@@ -150,24 +157,29 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
+
+                    // Ensure session accounts are up to date
+                    await UpdateSessions(client, chat);
+
+                    // Send message to all session accounts
                     await ProcessChatMessage(client, chat);
                 }
             }
             catch (OperationCanceledException)
             {
-                RemoveClientSession(client);
+                // Ignore
             }
             catch (IOException)
             {
-                RemoveClientSession(client);
+                // Ignore
             }
             catch (SocketException)
             {
-                RemoveClientSession(client);
+                // Ignore
             }
-            catch (Exception e)
+            catch (Exception)
             {
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"Client error: {e.Message}"));
+                // Ignore
             }
             finally
             {
@@ -177,11 +189,15 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToClientsAsync(ChatMessage chat)
         {
+            // Update the text or member list displayed to the host's UI
+            UpdateServerUIFromMessage(chat);
+
             ClientSession[] sessionCopy = GetClientSessions();
 
             // Do all message sends concurrently in case a client is slow
             IEnumerable<Task> tasks = sessionCopy.Select(async session =>
             {
+                bool failedSend = false;
                 try
                 {
                     await session.SendLock.WaitAsync();
@@ -192,19 +208,24 @@ namespace BluetoothChat.Functions
                     }
                     catch (IOException)
                     {
-                        RemoveClientSession(session);
+                        failedSend = true;
                     }
                     catch (ObjectDisposedException)
                     {
-                        RemoveClientSession(session);
+                        failedSend = true;
                     }
                     catch (SocketException)
                     {
-                        RemoveClientSession(session);
+                        failedSend = true;
                     }
                     finally
                     {
                         session.SendLock.Release();
+
+                        if (failedSend)
+                        {
+                            RemoveClientSession(session);
+                        }
                     }
                 }
                 catch (Exception)
@@ -228,14 +249,31 @@ namespace BluetoothChat.Functions
             // Adjust the content of a message (if the user joins or leaves)
             message = PrepareChatMessage(message);
 
-            // Adjust the session list (if the user joins, leaves, or updates thier name)
-            await ModifyAndSendClientSessionList(client, message);
-
-            // Update the text or member list displayed to the host's UI
-            UpdateServerUIFromMessage(message);
-
             // Sends the finalized message to the clients
             await SendMessageToClientsAsync(message);
+        }
+
+        public async Task UpdateSessions(BluetoothClient client, ChatMessage message)
+        {
+            // Adjust the session list (if the user joins, leaves, or updates thier name)
+            bool listAdjusted = ModifyClientSessionList(client, message);
+
+            // Send a snapshot to all connected users if adjusted
+            if (listAdjusted)
+            {
+                List<AppAccount> accounts = GetAppAccounts();
+                ChatMessage chat = new ChatMessage()
+                {
+                    MessageType = MessageType.MemberList,
+                    SenderName = app.Account.Name,
+                    SenderId = app.Account.AccountId,
+                    Content = JsonConvert.SerializeObject(accounts)
+                };
+
+                // MemberList sends a message to all ClientSessions
+                chat = PrepareChatMessage(chat);
+                await SendMessageToClientsAsync(chat);
+            }
         }
 
         private ChatMessage PrepareChatMessage(ChatMessage message)
@@ -249,17 +287,14 @@ namespace BluetoothChat.Functions
                 case MessageType.Leave:
                     message.Content = $">> [{message.SenderName}] has left the server";
                     break;
-                case MessageType.MemberList:
-                    List<AppAccount> accounts = GetAppAccounts();
-                    message.Content = ChatProtocol.SerializeAccountMembers(accounts);
-                    break;
             }
             return message;
         }
 
-        private async Task ModifyAndSendClientSessionList(BluetoothClient client, ChatMessage message)
+        private bool ModifyClientSessionList(BluetoothClient client, ChatMessage message)
         {
             bool listAdjusted = false;
+
             // In case a user joins, leaves, or changes their name update the session list appropriately
             switch (message.MessageType)
             {
@@ -277,11 +312,7 @@ namespace BluetoothChat.Functions
                     break;
             }
 
-            if (listAdjusted)
-            {
-                List<AppAccount> accounts = GetAppAccounts();
-                await SendMemberListToClientsAsync(accounts, app.Account);
-            }
+            return listAdjusted;
         }
 
         private void UpdateServerUIFromMessage(ChatMessage message)
@@ -302,28 +333,6 @@ namespace BluetoothChat.Functions
                 case MessageType.ServerMessage:
                     app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{message.SenderName}]: {message.Content}"));
                     break;
-            }
-        }
-
-        private async Task SendMemberListToClientsAsync(List<AppAccount> accounts, AppAccount serverAccount)
-        {
-            try
-            {
-                ChatMessage chat = new ChatMessage()
-                {
-                    MessageType = MessageType.MemberList,
-                    SenderName = serverAccount.Name,
-                    SenderId = serverAccount.AccountId,
-                    Content = JsonConvert.SerializeObject(accounts)
-                };
-
-                // MemberList sends a message to all ClientSessions
-                chat = PrepareChatMessage(chat);
-                await SendMessageToClientsAsync(chat);
-            }
-            catch (Exception e)
-            {
-                app.AppendConsoleText($"[ERROR] Unable to send member list to clients: {e.Message}");
             }
         }
 
@@ -348,10 +357,17 @@ namespace BluetoothChat.Functions
                         AccountId = app.Account.AccountId
                     }
                 };
-                accounts.AddRange(sessions
-                    .Where(ses => ses.Account != null)
-                    .Select(ses => ses.Account)
-                    .ToList());
+
+                // Add a new copy of AppAccount objects to send to clients
+                // Avoid using the server's references
+                foreach (ClientSession session in sessions)
+                {
+                    accounts.Add(new AppAccount()
+                    {
+                        Name = session.Account.Name,
+                        AccountId = session.Account.AccountId
+                    });
+                }
                 return accounts;
             }
         }

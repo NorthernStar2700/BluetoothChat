@@ -127,6 +127,7 @@ namespace BluetoothChat.UI
                 {
                     message.MessageType = MessageType.UsernameChange;
                     message.Content = $"[HOST] {message.Content}";
+                    await server.UpdateSessions(null, message);
                     await server.ProcessChatMessage(null, message);
                 }
             }

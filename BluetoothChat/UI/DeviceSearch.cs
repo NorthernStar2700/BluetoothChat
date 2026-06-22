@@ -132,10 +132,7 @@ namespace BluetoothChat.UI
             }
             finally
             {
-                if (!IsDisposed && !Disposing && IsHandleCreated)
-                {
-                    BtnRestart.Enabled = true;
-                }
+                BtnRestart.Enabled = true;
             }
         }
     }
