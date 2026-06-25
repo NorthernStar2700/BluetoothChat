@@ -35,7 +35,7 @@ namespace BluetoothChat.Functions
 
             if (IsRunning)
             {
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Server is already active. You cannot run another server"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("[ERROR] Server is already active. You cannot run another server."));
                 return;
             }
 
@@ -51,13 +51,13 @@ namespace BluetoothChat.Functions
             catch (Exception e)
             {
                 app.SetAppMode(AppMode.Inactive);
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Unable to start server: {e.Message}"));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Unable to start server: {e.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.ConsolePrompt));
                 return;
             }
 
-            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients"));
-            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work"));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients."));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work."));
             app.SetConnectedCheckbox(true);
             IsRunning = true;
             app.AddChatMember(app.Account);
@@ -75,7 +75,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e) 
             {
-                app.AppendConsoleText($"{e.Message}");
+                app.AppendConsoleText($"[ERROR] Cannot cancel token: {e.Message}.");
             }
 
             try
@@ -85,7 +85,7 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e) 
             { 
-                app.AppendConsoleText($"{e.Message}"); 
+                app.AppendConsoleText($"[ERROR] Problem stopping and disposing server: {e.Message}."); 
             }
 
             ClientSession[] sessionCopy;
@@ -94,7 +94,6 @@ namespace BluetoothChat.Functions
                 sessionCopy = sessions.ToArray();
                 sessions.Clear();
             }
-
             foreach (ClientSession session in sessionCopy)
             {
                 try
@@ -144,8 +143,8 @@ namespace BluetoothChat.Functions
                 }
                 catch (Exception e)
                 {
-                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Client could not be connected: {e.Message}"));
-                    return;
+                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Client could not be connected: {e.Message}."));
+                    continue;
                 }
             }
         }
@@ -162,7 +161,7 @@ namespace BluetoothChat.Functions
                     await UpdateSessions(client, chat);
 
                     // Send message to all session accounts
-                    await ProcessChatMessage(client, chat);
+                    await ProcessChatMessage(chat);
                 }
             }
             catch (OperationCanceledException)
@@ -183,7 +182,21 @@ namespace BluetoothChat.Functions
             }
             finally
             {
-                RemoveClientSession(client);
+                ClientSession session;
+                bool sessionRemoved;
+
+                // Here prevent modifications and do the removal directly
+                // RemoveClientSession() has a lock in it
+                lock (sessionLock)
+                {
+                    session = sessions.FirstOrDefault(ses => ses.Client == client);
+                    sessionRemoved = session != null && sessions.Remove(session);
+                }
+
+                if (sessionRemoved)
+                {
+                    session?.Dispose();
+                }
             }
         }
 
@@ -240,11 +253,11 @@ namespace BluetoothChat.Functions
             }
             catch (Exception e)
             {
-                app.AppendConsoleText($"[ERROR] Task error: {e.Message}");
+                app.AppendConsoleText($"[ERROR] Task error: {e.Message}.");
             }
         }
 
-        public async Task ProcessChatMessage(BluetoothClient client, ChatMessage message)
+        public async Task ProcessChatMessage(ChatMessage message)
         {
             // Adjust the content of a message (if the user joins or leaves)
             message = PrepareChatMessage(message);
@@ -253,11 +266,16 @@ namespace BluetoothChat.Functions
             await SendMessageToClientsAsync(message);
         }
 
-        public async Task UpdateSessions(BluetoothClient client, ChatMessage message)
+        private async Task UpdateSessions(BluetoothClient client, ChatMessage message)
         {
             // Adjust the session list (if the user joins, leaves, or updates thier name)
             bool listAdjusted = ModifyClientSessionList(client, message);
 
+            await SendMemberListToClients(listAdjusted);
+        }
+
+        public async Task SendMemberListToClients(bool listAdjusted)
+        {
             // Send a snapshot to all connected users if adjusted
             if (listAdjusted)
             {
@@ -282,10 +300,10 @@ namespace BluetoothChat.Functions
             switch (message.MessageType)
             {
                 case MessageType.Join:
-                    message.Content = $">> [{message.SenderName}] has joined the server";
+                    message.Content = $">> [{message.SenderName}] has joined the server.";
                     break;
                 case MessageType.Leave:
-                    message.Content = $">> [{message.SenderName}] has left the server";
+                    message.Content = $">> [{message.SenderName}] has left the server.";
                     break;
             }
             return message;
@@ -293,26 +311,56 @@ namespace BluetoothChat.Functions
 
         private bool ModifyClientSessionList(BluetoothClient client, ChatMessage message)
         {
-            bool listAdjusted = false;
-
-            // In case a user joins, leaves, or changes their name update the session list appropriately
-            switch (message.MessageType)
+            lock (sessionLock)
             {
-                case MessageType.Join:
-                    AddClientSession(client, message.SenderName, message.SenderId);
-                    listAdjusted = true;
-                    break;
-                case MessageType.Leave:
-                    RemoveClientSession(message.SenderId);
-                    listAdjusted = true;
-                    break;
-                case MessageType.UsernameChange:
-                    UpdateAccountName(message.SenderName, message.SenderId);
-                    listAdjusted = true;
-                    break;
-            }
+                bool listAdjusted = false;
+                ClientSession session = sessions.FirstOrDefault(ses => ses.Client == client);
 
-            return listAdjusted;
+                // In case a user joins, leaves, or changes their name update the session list appropriately
+                switch (message.MessageType)
+                {
+                    case MessageType.Join:
+                        if (session == null)
+                        {
+                            ClientSession newSession = new ClientSession()
+                            {
+                                Account = new AppAccount()
+                                {
+                                    Name = NameSanitizer.Sanitize(message.SenderName),
+                                    AccountId = message.SenderId
+                                },
+                                Client = client,
+                                Stream = client.GetStream()
+                            };
+
+                            sessions.Add(newSession);
+                            listAdjusted = true;
+                        }
+                        break;
+                    case MessageType.Leave:
+                        if (session != null)
+                        {
+                            RemoveClientSession(session);
+                            listAdjusted = true;
+                        }
+                        break;
+                    case MessageType.UsernameChange:
+                        if (session != null)
+                        {
+                            session.Account.Name = NameSanitizer.Sanitize(message.SenderName);
+                            listAdjusted = true;
+                        }
+                        break;
+                }
+
+                if (session != null)
+                {
+                    message.SenderName = session.Account.Name;
+                    message.SenderId = session.Account.AccountId;
+                }
+
+                return listAdjusted;
+            }
         }
 
         private void UpdateServerUIFromMessage(ChatMessage message)
@@ -372,75 +420,17 @@ namespace BluetoothChat.Functions
             }
         }
 
-        private void AddClientSession(BluetoothClient client, string name, string accountId)
-        {
-            ClientSession session = new ClientSession()
-            {
-                Account = new AppAccount()
-                {
-                    Name = name,
-                    AccountId = accountId
-                },
-                Client = client,
-                Stream = client.GetStream()
-            };
-
-            lock (sessionLock)
-            {
-                sessions.Add(session);
-            }
-        }
-
         private void RemoveClientSession(ClientSession session)
         {
+            bool sessionRemoved;
             lock (sessionLock)
             {
-                sessions.Remove(session);
-                session.Dispose();
+                sessionRemoved = sessions.Remove(session);
             }
-        }
 
-        private void RemoveClientSession(BluetoothClient client)
-        {
-            lock (sessionLock)
+            if (sessionRemoved)
             {
-                ClientSession session = sessions.FirstOrDefault(ses => ses.Client == client);
-                if (session == null)
-                {
-                    return;
-                }
-
-                sessions.Remove(session);
                 session.Dispose();
-            }
-        }
-
-        private void RemoveClientSession(string accountId)
-        {
-            lock (sessionLock)
-            {
-                ClientSession session = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
-                if (session == null)
-                {
-                    return;
-                }
-
-                sessions.Remove(session);
-                session.Dispose();
-            }
-        }
-        
-        private void UpdateAccountName(string name, string accountId)
-        {
-            lock (sessionLock)
-            {
-                ClientSession foundAccount = sessions.FirstOrDefault(ses => ses.Account.AccountId == accountId);
-                if (foundAccount == null)
-                {
-                    return;
-                }
-
-                foundAccount.Account.Name = name;
             }
         }
     }

@@ -101,28 +101,9 @@ namespace BluetoothChat.Functions
             return buffer;
         }
 
-        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) 
-        {
-            try
-            {
-                return Task.Run(() => stream.Read(buffer, offset, count));
-            }
-            catch (Exception)
-            {
-                throw new IOException("Read error");
-            }
-        }
+        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Read(buffer, offset, count));
 
-        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count)
-        { 
-            try { 
-                return Task.Run(() => stream.Write(buffer, offset, count)); 
-            } 
-            catch (Exception) 
-            { 
-                throw new IOException("Write error");
-            } 
-        }
+        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Write(buffer, offset, count));
 
         private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
 

@@ -29,7 +29,7 @@ namespace BluetoothChat.UI
 
             try
             {
-                List<Device> devices = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
+                List<Device> devices = JsonConvert.DeserializeObject<List<Device>>(deviceList);
                 if (devices == null || devices.Count == 0)
                 {
                     return;
@@ -45,7 +45,7 @@ namespace BluetoothChat.UI
             }
             catch (Exception)
             {
-
+                LbxDevices.Items.Add("Device history list malformed.");
             }
         }
 

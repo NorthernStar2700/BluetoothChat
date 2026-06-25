@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.Remoting.Messaging;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 using BluetoothChat.Models;
@@ -16,7 +15,7 @@ namespace BluetoothChat.UI
         private const string searchText = "Searching...";
         private const string searchCompleteText = "Search complete";
         private const string searchErrorText = "Error finding devices. Try scanning again";
-        private string deviceList;
+        private readonly string deviceList;
         private List<Device> devices;
 
         public FrmDeviceSearch(string deviceList)
@@ -30,14 +29,14 @@ namespace BluetoothChat.UI
             BtnCopy.Enabled = false;
             try
             {
-                List<Device> devices = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
+                List<Device> deviceHistory = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
                 if (devices != null && devices.Count > 0)
                 {
-                    this.devices = devices;
+                    devices = deviceHistory;
                 }
                 else
                 {
-                    this.devices = new List<Device>();
+                    devices = new List<Device>();
                 }
             }
             catch (Exception)
@@ -104,9 +103,9 @@ namespace BluetoothChat.UI
             try
             {
                 BluetoothClient client = new BluetoothClient();
-                List<BluetoothDeviceInfo> devices = await Task.Run(() => client.DiscoverDevices().ToList());
+                List<BluetoothDeviceInfo> foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
 
-                foreach (BluetoothDeviceInfo device in devices)
+                foreach (BluetoothDeviceInfo device in foundDevices)
                 {
                     string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
                     Device deviceObj = new Device()
@@ -121,7 +120,7 @@ namespace BluetoothChat.UI
                 client.Close();
                 client.Dispose();
 
-                if (devices.Count > 0)
+                if (LbxDevices.Items.Count > 0)
                 {
                     BtnCopy.Enabled = true;
                 }

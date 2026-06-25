@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Windows.Forms;
-using BluetoothChat.Constants;
+﻿using BluetoothChat.Constants;
 using BluetoothChat.Enums;
 using BluetoothChat.Functions;
 using BluetoothChat.Models;
 using BluetoothChat.Properties;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Text;
+using System.Windows.Forms;
 
 namespace BluetoothChat.UI
 {
@@ -93,20 +94,11 @@ namespace BluetoothChat.UI
                     return;
                 }
 
-                string newUsername = dialog.NewUsername.Trim();
+                string newUsername = NameSanitizer.Sanitize(dialog.NewUsername);
+                CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
+                Settings.Default.CurrentUsername = newUsername;
+                Account.Name = newUsername;
 
-                if (!string.IsNullOrWhiteSpace(newUsername))
-                {
-                    if (newUsername.ToUpperInvariant().IndexOf("[HOST]") != -1)
-                    {
-                        MessageBox.Show("Your name cannot have [HOST] in it");
-                        return;
-                    }
-
-                    CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
-                    Settings.Default.CurrentUsername = newUsername;
-                    Account.Name = newUsername;
-                }
 
                 // Send a chat message when users change their usernames
                 ChatMessage message = new ChatMessage()
@@ -123,10 +115,9 @@ namespace BluetoothChat.UI
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
-                    message.MessageType = MessageType.UsernameChange;
                     message.Content = $"[HOST] {message.Content}";
-                    await server.UpdateSessions(null, message);
-                    await server.ProcessChatMessage(null, message);
+                    await server.SendMemberListToClients(true);
+                    await server.ProcessChatMessage(message);
                 }
             }
         }
@@ -186,7 +177,7 @@ namespace BluetoothChat.UI
                             {
                                 // Server is the one who sends this message
                                 message.MessageType = MessageType.ServerMessage;
-                                await server.ProcessChatMessage(null, message);
+                                await server.ProcessChatMessage(message);
                             }
                         }
                         finally
