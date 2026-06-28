@@ -116,8 +116,8 @@ namespace BluetoothChat.UI
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
                     message.Content = $"[HOST] {message.Content}";
-                    await server.SendMemberListToClients(true);
                     await server.ProcessChatMessage(message);
+                    await server.SendMemberListToClients();
                 }
             }
         }
@@ -160,6 +160,7 @@ namespace BluetoothChat.UI
                         try
                         {
                             SetSendButtonEnabled(false);
+
                             // Create a chat message and pass it to all clients
                             ChatMessage message = new ChatMessage()
                             {

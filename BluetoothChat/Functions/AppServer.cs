@@ -157,11 +157,16 @@ namespace BluetoothChat.Functions
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
 
-                    // Ensure session accounts are up to date
-                    await UpdateSessions(client, chat);
+                    bool isValidMessage = ValidateChatMessage(chat);
 
-                    // Send message to all session accounts
-                    await ProcessChatMessage(chat);
+                    if (isValidMessage)
+                    {
+                        // Send message to all session accounts
+                        await ProcessChatMessage(chat);
+
+                        // Ensure session accounts are up to date
+                        await UpdateSessions(client, chat);
+                    }
                 }
             }
             catch (OperationCanceledException)
@@ -266,32 +271,36 @@ namespace BluetoothChat.Functions
             await SendMessageToClientsAsync(message);
         }
 
+        private bool ValidateChatMessage(ChatMessage message)
+        {
+            return message.MessageType == MessageType.ServerMessage ||
+                message.MessageType == MessageType.MemberList;
+        }
+
         private async Task UpdateSessions(BluetoothClient client, ChatMessage message)
         {
             // Adjust the session list (if the user joins, leaves, or updates thier name)
             bool listAdjusted = ModifyClientSessionList(client, message);
 
-            await SendMemberListToClients(listAdjusted);
-        }
-
-        public async Task SendMemberListToClients(bool listAdjusted)
-        {
-            // Send a snapshot to all connected users if adjusted
             if (listAdjusted)
             {
-                List<AppAccount> accounts = GetAppAccounts();
-                ChatMessage chat = new ChatMessage()
-                {
-                    MessageType = MessageType.MemberList,
-                    SenderName = app.Account.Name,
-                    SenderId = app.Account.AccountId,
-                    Content = JsonConvert.SerializeObject(accounts)
-                };
-
-                // MemberList sends a message to all ClientSessions
-                chat = PrepareChatMessage(chat);
-                await SendMessageToClientsAsync(chat);
+                await SendMemberListToClients();
             }
+        }
+
+        public async Task SendMemberListToClients()
+        {
+            List<AppAccount> accounts = GetAppAccounts();
+            ChatMessage chat = new ChatMessage()
+            {
+                MessageType = MessageType.MemberList,
+                SenderName = app.Account.Name,
+                SenderId = app.Account.AccountId,
+                Content = JsonConvert.SerializeObject(accounts)
+            };
+
+            // MemberList sends a message to all ClientSessions
+            await SendMessageToClientsAsync(chat);
         }
 
         private ChatMessage PrepareChatMessage(ChatMessage message)
