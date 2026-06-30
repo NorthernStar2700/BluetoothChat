@@ -30,7 +30,7 @@ namespace BluetoothChat.UI
             try
             {
                 List<Device> deviceHistory = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
-                if (devices != null && devices.Count > 0)
+                if (deviceHistory != null && deviceHistory.Count > 0)
                 {
                     devices = deviceHistory;
                 }
@@ -100,9 +100,9 @@ namespace BluetoothChat.UI
             BtnRestart.Enabled = false;
             BtnCopy.Enabled = false;
 
+            BluetoothClient client = new BluetoothClient();
             try
             {
-                BluetoothClient client = new BluetoothClient();
                 List<BluetoothDeviceInfo> foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
 
                 foreach (BluetoothDeviceInfo device in foundDevices)
@@ -117,8 +117,6 @@ namespace BluetoothChat.UI
                 }
 
                 LblSearch.Text = searchCompleteText;
-                client.Close();
-                client.Dispose();
 
                 if (LbxDevices.Items.Count > 0)
                 {
@@ -132,6 +130,8 @@ namespace BluetoothChat.UI
             finally
             {
                 BtnRestart.Enabled = true;
+                client.Close();
+                client.Dispose();
             }
         }
     }

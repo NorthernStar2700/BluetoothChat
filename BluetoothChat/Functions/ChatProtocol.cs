@@ -25,7 +25,7 @@ namespace BluetoothChat.Functions
             try
             {
                 // Try to convert the message into JSON format
-                string json = Serialize(message);
+                string json = ObjectConverter.SerializeMessage(message);
                 byte[] messageData = Encoding.UTF8.GetBytes(json);
 
                 // HostToNetworkOrder is used as the clients will be sending data to the network (server)
@@ -63,20 +63,12 @@ namespace BluetoothChat.Functions
                 byte[] messageBuffer = await ReadBytesAsync(stream, messageLength);
                 string json = Encoding.UTF8.GetString(messageBuffer);
 
-                return Deserialize(json);
+                return ObjectConverter.DeserializeMessage(json);
             }
             catch (Exception e)
             {
                 throw new IOException($"Read message error: {e.Message}", e);
             }
-        }
-
-        public static string SerializeAccountMembers(List<AppAccount> accounts) => JsonConvert.SerializeObject(accounts);
-
-        public static List<AppAccount> DeserializeAccountMembers(string json) 
-        {
-            List<AppAccount> accounts = JsonConvert.DeserializeObject<List<AppAccount>>(json);
-            return accounts ?? throw new IOException("Invalid or empty member list was passed in");
         }
 
         private static async Task<byte[]> ReadBytesAsync(NetworkStream stream, int length)
@@ -101,16 +93,10 @@ namespace BluetoothChat.Functions
             return buffer;
         }
 
-        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Read(buffer, offset, count));
+        private static Task<int> ReadInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) 
+            => Task.Run(() => stream.Read(buffer, offset, count));
 
-        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) => Task.Run(() => stream.Write(buffer, offset, count));
-
-        private static string Serialize(ChatMessage message) => JsonConvert.SerializeObject(message);
-
-        private static ChatMessage Deserialize(string json)
-        {
-            ChatMessage message = JsonConvert.DeserializeObject<ChatMessage>(json);
-            return message ?? throw new IOException("Invalid or empty chat message was passed in");
-        }
+        private static Task WriteInternalAsync(NetworkStream stream, byte[] buffer, int offset, int count) 
+            => Task.Run(() => stream.Write(buffer, offset, count));
     }
 }

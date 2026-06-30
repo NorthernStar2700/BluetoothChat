@@ -148,7 +148,7 @@ namespace BluetoothChat.Functions
                         case MessageType.MemberList:
                             try
                             {
-                                List<AppAccount> accounts = ChatProtocol.DeserializeAccountMembers(response.Content);
+                                List<AppAccount> accounts = ObjectConverter.DeserializeAccountMembers(response.Content);
                                 app.ReplaceChatMembers(accounts);
                             }
                             catch (Exception e)

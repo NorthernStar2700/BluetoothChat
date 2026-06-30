@@ -60,6 +60,7 @@
   <ItemGroup>
     <Compile Include="Constants\BluetoothConstants.cs" />
     <Compile Include="Functions\NameSanitizer.cs" />
+    <Compile Include="Functions\ObjectConverter.cs" />
     <Compile Include="Models\AppAccount.cs" />
     <Compile Include="Models\ClientSession.cs" />
     <Compile Include="Models\Device.cs" />

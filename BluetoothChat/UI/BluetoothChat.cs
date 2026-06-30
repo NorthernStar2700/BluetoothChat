@@ -97,25 +97,22 @@ namespace BluetoothChat.UI
                 string newUsername = NameSanitizer.Sanitize(dialog.NewUsername);
                 CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
                 Settings.Default.CurrentUsername = newUsername;
-                Account.Name = newUsername;
-
-
-                // Send a chat message when users change their usernames
-                ChatMessage message = new ChatMessage()
-                {
-                    MessageType = MessageType.UsernameChange,
-                    SenderName = Account.Name,
-                    SenderId = Account.AccountId,
-                    Content = $"[{oldUsername}] changed their name to [{Account.Name}]"
-                };
 
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
+                    // Send a chat message when users change their usernames
+                    ChatMessage message = new ChatMessage()
+                    {
+                        MessageType = MessageType.UsernameChange,
+                        SenderName = Account.Name,
+                        SenderId = Account.AccountId,
+                    };
+
                     await client.SendMessageToServer(message);
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {
-                    message.Content = $"[HOST] {message.Content}";
+                    ChatMessage message = server.HandleServerUsernameChange(newUsername);
                     await server.ProcessChatMessage(message);
                     await server.SendMemberListToClients();
                 }

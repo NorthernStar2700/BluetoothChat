@@ -156,16 +156,38 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
+                    ClientSession session = FindClientSession(client);
+                    string accountName = session.Account.Name;
+                    string accountId = session.Account.AccountId;
 
-                    bool isValidMessage = ValidateChatMessage(chat);
 
-                    if (isValidMessage)
+                    bool isInvalidMessage = CheckInvalidChatMessage(chat);
+
+                    if (!isInvalidMessage)
                     {
-                        // Send message to all session accounts
-                        await ProcessChatMessage(chat);
+                        bool listAdjusted = ModifyClientSessionList(client, chat);
 
-                        // Ensure session accounts are up to date
-                        await UpdateSessions(client, chat);
+                        // Send message to all session accounts
+
+                        if (chat.MessageType == MessageType.Leave)
+                        {
+                            ChatMessage message = new ChatMessage()
+                            {
+                                MessageType = MessageType.Leave,
+                                SenderName = accountName,
+                                SenderId = accountId,
+                                Content = $">> [{accountName}] has left the server."
+                            };
+                        }
+                        else
+                        {
+                            await ProcessChatMessage(session, chat);
+                        }
+
+                        if (listAdjusted)
+                        {
+                            await SendMemberListToClients();
+                        }
                     }
                 }
             }
@@ -216,39 +238,37 @@ namespace BluetoothChat.Functions
             IEnumerable<Task> tasks = sessionCopy.Select(async session =>
             {
                 bool failedSend = false;
+                bool lockActivated = false;
                 try
                 {
                     await session.SendLock.WaitAsync();
+                    lockActivated = true;
 
-                    try
-                    {
-                        await ChatProtocol.SendAsync(session.Stream, chat);
-                    }
-                    catch (IOException)
-                    {
-                        failedSend = true;
-                    }
-                    catch (ObjectDisposedException)
-                    {
-                        failedSend = true;
-                    }
-                    catch (SocketException)
-                    {
-                        failedSend = true;
-                    }
-                    finally
+                    await ChatProtocol.SendAsync(session.Stream, chat);
+                }
+                catch (IOException)
+                {
+                    failedSend = true;
+                }
+                catch (ObjectDisposedException)
+                {
+                    failedSend = true;
+                }
+                catch (SocketException)
+                {
+                    failedSend = true;
+                }
+                finally
+                {
+                    if (lockActivated)
                     {
                         session.SendLock.Release();
-
-                        if (failedSend)
-                        {
-                            RemoveClientSession(session);
-                        }
                     }
-                }
-                catch (Exception)
-                {
-                    RemoveClientSession(session);
+
+                    if (failedSend)
+                    {
+                        RemoveClientSession(session);
+                    }
                 }
             });
 
@@ -264,28 +284,7 @@ namespace BluetoothChat.Functions
 
         public async Task ProcessChatMessage(ChatMessage message)
         {
-            // Adjust the content of a message (if the user joins or leaves)
-            message = PrepareChatMessage(message);
-
-            // Sends the finalized message to the clients
             await SendMessageToClientsAsync(message);
-        }
-
-        private bool ValidateChatMessage(ChatMessage message)
-        {
-            return message.MessageType == MessageType.ServerMessage ||
-                message.MessageType == MessageType.MemberList;
-        }
-
-        private async Task UpdateSessions(BluetoothClient client, ChatMessage message)
-        {
-            // Adjust the session list (if the user joins, leaves, or updates thier name)
-            bool listAdjusted = ModifyClientSessionList(client, message);
-
-            if (listAdjusted)
-            {
-                await SendMemberListToClients();
-            }
         }
 
         public async Task SendMemberListToClients()
@@ -296,23 +295,63 @@ namespace BluetoothChat.Functions
                 MessageType = MessageType.MemberList,
                 SenderName = app.Account.Name,
                 SenderId = app.Account.AccountId,
-                Content = JsonConvert.SerializeObject(accounts)
+                Content = ObjectConverter.SerializeAccountMembers(accounts)
             };
 
             // MemberList sends a message to all ClientSessions
             await SendMessageToClientsAsync(chat);
         }
 
-        private ChatMessage PrepareChatMessage(ChatMessage message)
+        public ChatMessage HandleServerUsernameChange(string name)
+        {
+            string oldName = app.Account.Name;
+            name = NameSanitizer.Sanitize(name);
+            app.Account.Name = name;
+
+            ChatMessage message = new ChatMessage()
+            {
+                MessageType = MessageType.UsernameChange,
+                SenderName = app.Account.Name,
+                SenderId = app.Account.AccountId,
+                Content = $">> [HOST] [{oldName}] has changed their name to [{name}]."
+            };
+
+            return message;
+        }
+
+        private async Task ProcessChatMessage(ClientSession session, ChatMessage message)
+        {
+            if (session == null)
+            {
+                return;
+            }
+
+            // Adjust the content of a message (if the user joins or leaves)
+            message = PrepareChatMessage(session, message);
+
+            // Sends the finalized message to the clients
+            await SendMessageToClientsAsync(message);
+        }
+
+        private bool CheckInvalidChatMessage(ChatMessage message)
+        {
+            return message.MessageType == MessageType.ServerMessage ||
+                message.MessageType == MessageType.MemberList;
+        }
+
+        private ChatMessage PrepareChatMessage(ClientSession session, ChatMessage message)
         {
             // Any modifications or displays before passing message to clients
             switch (message.MessageType)
             {
                 case MessageType.Join:
-                    message.Content = $">> [{message.SenderName}] has joined the server.";
+                    message.Content = $">> [{session.Account.Name}] has joined the server.";
                     break;
                 case MessageType.Leave:
-                    message.Content = $">> [{message.SenderName}] has left the server.";
+                    message.Content = $">> [{session.Account.Name}] has left the server.";
+                    break;
+                case MessageType.UsernameChange:
+                    message.Content = $">> [{session.Account.Name}] has changed their name to [{message.SenderName}].";
                     break;
             }
             return message;
@@ -426,6 +465,14 @@ namespace BluetoothChat.Functions
                     });
                 }
                 return accounts;
+            }
+        }
+
+        private ClientSession FindClientSession(BluetoothClient client)
+        {
+            lock (sessionLock)
+            {
+                return sessions.FirstOrDefault(ses => ses.Client == client);
             }
         }
 
