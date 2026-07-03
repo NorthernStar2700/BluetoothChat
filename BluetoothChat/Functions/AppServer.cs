@@ -156,21 +156,23 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    ClientSession session = FindClientSession(client);
-                    string accountName = session.Account.Name;
-                    string accountId = session.Account.AccountId;
-
-
                     bool isInvalidMessage = CheckInvalidChatMessage(chat);
 
                     if (!isInvalidMessage)
                     {
-                        bool listAdjusted = ModifyClientSessionList(client, chat);
-
-                        // Send message to all session accounts
-
                         if (chat.MessageType == MessageType.Leave)
                         {
+                            // Send message to all session accounts
+                            ClientSession session = FindClientSession(client);
+                            string accountName = string.Empty;
+                            string accountId = string.Empty;
+
+                            if (session != null)
+                            {
+                                accountName = session.Account.Name;
+                                accountId = session.Account.AccountId;
+                            }
+
                             ChatMessage message = new ChatMessage()
                             {
                                 MessageType = MessageType.Leave,
@@ -178,15 +180,25 @@ namespace BluetoothChat.Functions
                                 SenderId = accountId,
                                 Content = $">> [{accountName}] has left the server."
                             };
+
+                            await ProcessChatMessage(message);
+
+                            bool listAdjusted = ModifyClientSessionList(client, chat);
+                            if (listAdjusted)
+                            {
+                                await SendMemberListToClients();
+                            }
                         }
                         else
                         {
-                            await ProcessChatMessage(session, chat);
-                        }
+                            bool listAdjusted = ModifyClientSessionList(client, chat);
+                            if (listAdjusted)
+                            {
+                                await SendMemberListToClients();
+                            }
 
-                        if (listAdjusted)
-                        {
-                            await SendMemberListToClients();
+                            ClientSession session = FindClientSession(client);
+                            await ProcessChatMessage(session, chat);
                         }
                     }
                 }
@@ -321,11 +333,6 @@ namespace BluetoothChat.Functions
 
         private async Task ProcessChatMessage(ClientSession session, ChatMessage message)
         {
-            if (session == null)
-            {
-                return;
-            }
-
             // Adjust the content of a message (if the user joins or leaves)
             message = PrepareChatMessage(session, message);
 

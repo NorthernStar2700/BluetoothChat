@@ -97,6 +97,7 @@ namespace BluetoothChat.UI
                 string newUsername = NameSanitizer.Sanitize(dialog.NewUsername);
                 CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
                 Settings.Default.CurrentUsername = newUsername;
+                Account.Name = newUsername;
 
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
