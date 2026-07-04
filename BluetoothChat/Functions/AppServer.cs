@@ -4,7 +4,6 @@ using BluetoothChat.Models;
 using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
-using Newtonsoft.Json;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -128,8 +127,7 @@ namespace BluetoothChat.Functions
 
                     _ = Task.Run(() => HandleClientAsync(client, stream, ct));
                 }
-                catch (IOException e) when (e.InnerException is SocketException socketEx && 
-                    socketEx.SocketErrorCode == SocketError.Interrupted)
+                catch (IOException e)
                 {
                     return;
                 }
@@ -139,7 +137,7 @@ namespace BluetoothChat.Functions
                 }
                 catch (SocketException e) when (e.SocketErrorCode == SocketError.Interrupted)
                 {
-                    return;
+                    continue;
                 }
                 catch (Exception e)
                 {
@@ -156,50 +154,35 @@ namespace BluetoothChat.Functions
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
                     ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    bool isInvalidMessage = CheckInvalidChatMessage(chat);
+                    bool isValidMessage = IsClientMessageAllowed(chat);
+                    ClientSession session = FindClientSession(client);
 
-                    if (!isInvalidMessage)
+                    if (!isValidMessage || session == null)
                     {
-                        if (chat.MessageType == MessageType.Leave)
+                        return;
+                    }
+
+                    if (chat.MessageType == MessageType.Leave)
+                    {
+                        string accountName = session.Account.Name;
+                        string accountId = session.Account.AccountId;
+
+                        chat = new ChatMessage()
                         {
-                            // Send message to all session accounts
-                            ClientSession session = FindClientSession(client);
-                            string accountName = string.Empty;
-                            string accountId = string.Empty;
+                            MessageType = MessageType.Leave,
+                            SenderName = accountName,
+                            SenderId = accountId,
+                            Content = $">> [{accountName}] has left the server."
+                        };
+                    }
 
-                            if (session != null)
-                            {
-                                accountName = session.Account.Name;
-                                accountId = session.Account.AccountId;
-                            }
+                    bool listAdjusted = ModifyClientSessionList(client, chat);
 
-                            ChatMessage message = new ChatMessage()
-                            {
-                                MessageType = MessageType.Leave,
-                                SenderName = accountName,
-                                SenderId = accountId,
-                                Content = $">> [{accountName}] has left the server."
-                            };
+                    await ProcessChatMessage(chat);
 
-                            await ProcessChatMessage(message);
-
-                            bool listAdjusted = ModifyClientSessionList(client, chat);
-                            if (listAdjusted)
-                            {
-                                await SendMemberListToClients();
-                            }
-                        }
-                        else
-                        {
-                            bool listAdjusted = ModifyClientSessionList(client, chat);
-                            if (listAdjusted)
-                            {
-                                await SendMemberListToClients();
-                            }
-
-                            ClientSession session = FindClientSession(client);
-                            await ProcessChatMessage(session, chat);
-                        }
+                    if (listAdjusted)
+                    {
+                        await SendMemberListToClients();
                     }
                 }
             }
@@ -340,10 +323,12 @@ namespace BluetoothChat.Functions
             await SendMessageToClientsAsync(message);
         }
 
-        private bool CheckInvalidChatMessage(ChatMessage message)
+        private bool IsClientMessageAllowed(ChatMessage message)
         {
-            return message.MessageType == MessageType.ServerMessage ||
-                message.MessageType == MessageType.MemberList;
+            return message.MessageType == MessageType.Chat ||
+                message.MessageType == MessageType.Join ||
+                message.MessageType == MessageType.Leave ||
+                message.MessageType == MessageType.UsernameChange;
         }
 
         private ChatMessage PrepareChatMessage(ClientSession session, ChatMessage message)
@@ -356,9 +341,6 @@ namespace BluetoothChat.Functions
                     break;
                 case MessageType.Leave:
                     message.Content = $">> [{session.Account.Name}] has left the server.";
-                    break;
-                case MessageType.UsernameChange:
-                    message.Content = $">> [{session.Account.Name}] has changed their name to [{message.SenderName}].";
                     break;
             }
             return message;
@@ -402,7 +384,10 @@ namespace BluetoothChat.Functions
                     case MessageType.UsernameChange:
                         if (session != null)
                         {
-                            session.Account.Name = NameSanitizer.Sanitize(message.SenderName);
+                            // Use the old name + new name here
+                            string newName = NameSanitizer.Sanitize(message.SenderName);
+                            message.Content = $">> [{session.Account.Name}] has changed their name to [{newName}].";
+                            session.Account.Name = newName;
                             listAdjusted = true;
                         }
                         break;

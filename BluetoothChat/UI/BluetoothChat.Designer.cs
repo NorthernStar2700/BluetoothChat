@@ -218,7 +218,7 @@
             | System.Windows.Forms.AnchorStyles.Right)));
             this.LbxMembers.FormattingEnabled = true;
             this.LbxMembers.HorizontalScrollbar = true;
-            this.LbxMembers.Location = new System.Drawing.Point(4, 17);
+            this.LbxMembers.Location = new System.Drawing.Point(4, 18);
             this.LbxMembers.Margin = new System.Windows.Forms.Padding(2);
             this.LbxMembers.Name = "LbxMembers";
             this.LbxMembers.Size = new System.Drawing.Size(148, 329);
