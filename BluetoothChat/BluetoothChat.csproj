@@ -59,11 +59,13 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Constants\BluetoothConstants.cs" />
+    <Compile Include="Functions\CryptoKeyGenerator.cs" />
     <Compile Include="Functions\NameSanitizer.cs" />
     <Compile Include="Functions\ObjectConverter.cs" />
     <Compile Include="Models\AppAccount.cs" />
     <Compile Include="Models\ClientSession.cs" />
     <Compile Include="Models\Device.cs" />
+    <Compile Include="Models\SessionKeys.cs" />
     <Compile Include="UI\BluetoothChat.cs">
       <SubType>Form</SubType>
     </Compile>

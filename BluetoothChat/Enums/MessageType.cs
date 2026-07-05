@@ -7,6 +7,9 @@
         Leave,
         UsernameChange,
         ServerMessage,
-        MemberList
+        MemberList,
+        ServerPublicKey,
+        ClientAesKey,
+        HandshakeComplete
     }
 }

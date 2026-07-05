@@ -7,6 +7,8 @@ using InTheHand.Net;
 using InTheHand.Net.Sockets;
 using System;
 using System.Collections.Generic;
+using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -17,8 +19,14 @@ namespace BluetoothChat.Functions
         public bool IsConnected { get; private set; }
 
         private readonly FrmBluetoothChat app;
-        private ClientSession session;
+        private BluetoothClient client;
+        private NetworkStream stream;
         private CancellationTokenSource cancelToken;
+        private SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
+
+        private SessionKeys sessionKeys;
+        private string serverPublicKey;
+        
 
         public AppClient(FrmBluetoothChat app)
         {
@@ -44,22 +52,18 @@ namespace BluetoothChat.Functions
 
             try
             {
-                session = new ClientSession
-                {
-                    Account = app.Account,
-                    Client = new BluetoothClient()
-                };
+                client = new BluetoothClient();
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server."));
                 await Task.Run(() =>
                 {
-                    session.Client.Connect(address, BluetoothConstants.ServiceGuid);
-                    session.Stream = session.Client.GetStream();
+                    client.Connect(address, BluetoothConstants.ServiceGuid);
                 });
+                stream = client.GetStream();
                 IsConnected = true;
             }
             catch (Exception ex)
             {
-                session?.Dispose();
+                Dispose();
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot connect to server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
@@ -94,7 +98,7 @@ namespace BluetoothChat.Functions
 
         public async Task SendMessageToServer(ChatMessage message)
         {
-            if (!IsConnected || session == null || session.Client == null || session.Stream == null)
+            if (!IsConnected || client == null || stream == null)
             {
                 return;
             }
@@ -102,10 +106,10 @@ namespace BluetoothChat.Functions
             bool lockActivated = false;
             try
             {
-                await session.SendLock.WaitAsync();
+                await sendLock.WaitAsync();
                 lockActivated = true;
 
-                await ChatProtocol.SendAsync(session.Stream, message);
+                await ChatProtocol.SendAsync(stream, message);
             }
             catch (Exception e)
             {
@@ -115,7 +119,7 @@ namespace BluetoothChat.Functions
             {
                 if (lockActivated)
                 {
-                    session.SendLock.Release();
+                    sendLock.Release();
                 }
             }
         }
@@ -131,7 +135,7 @@ namespace BluetoothChat.Functions
                         return;
                     }
 
-                    ChatMessage response = await ChatProtocol.ReadAsync(session.Stream);
+                    ChatMessage response = await ChatProtocol.ReadAsync(stream);
                     switch (response.MessageType) 
                     {
                         case MessageType.Chat:
@@ -156,13 +160,16 @@ namespace BluetoothChat.Functions
                                 app.AppendConsoleText($"[ERROR] Message read error: {e.Message}.");
                             }
                             break;
+                        case MessageType.ServerPublicKey:
+                            serverPublicKey = response.Content;
+                            CreateAesKey();
+                            break;
                     }
                 }
                 catch (Exception)
                 {
                     app.ResetUI();
-                    session?.Dispose();
-                    session = null;
+                    Dispose();
                     IsConnected = false;
                     return;
                 }
@@ -187,8 +194,7 @@ namespace BluetoothChat.Functions
             {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send join message to server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
-                session?.Dispose();
-                session = null;
+                Dispose();
                 IsConnected = false;
                 return;
             }
@@ -213,11 +219,49 @@ namespace BluetoothChat.Functions
                 }
                 finally
                 {
-                    session?.Dispose();
-                    session = null;
+                    Dispose();
                     IsConnected = false;
                 }
             }
+        }
+
+        public async Task SendAesKey()
+        {
+            if (sessionKeys == null)
+            {
+                return;
+            }
+
+            ChatMessage message = new ChatMessage()
+            {
+                MessageType = MessageType.ClientAesKey,
+                SenderName = app.Account.Name,
+                SenderId = app.Account.AccountId,
+                Content = ObjectConverter.SerializeSessionKeys(sessionKeys)
+            };
+
+            await SendMessageToServer(message);
+        }
+
+        private void CreateAesKey()
+        {
+            sessionKeys = new SessionKeys()
+            {
+                AesKey = CryptoKeyGenerator.GenerateAesKey(),
+                HmacKey = CryptoKeyGenerator.GenerateHmacKey()
+            };
+        }
+
+        private void Dispose()
+        {
+            stream?.Dispose();
+            client?.Close();
+            client?.Dispose();
+            sendLock?.Dispose();
+
+            stream = null;
+            client = null;
+            sendLock = null;
         }
     }
 }

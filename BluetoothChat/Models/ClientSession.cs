@@ -12,6 +12,7 @@ namespace BluetoothChat.Models
         public BluetoothClient Client { get; set; }
         public NetworkStream Stream { get; set; }
         public SemaphoreSlim SendLock { get; } = new SemaphoreSlim(1, 1);
+        public bool IsSecure { get; set; }
 
         public void Dispose()
         {

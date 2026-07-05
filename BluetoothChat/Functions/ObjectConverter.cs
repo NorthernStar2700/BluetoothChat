@@ -22,5 +22,13 @@ namespace BluetoothChat.Functions
             ChatMessage message = JsonConvert.DeserializeObject<ChatMessage>(json);
             return message ?? throw new IOException("Invalid or empty chat message was passed in");
         }
+
+        public static string SerializeSessionKeys(SessionKeys keys) => JsonConvert.SerializeObject(keys);
+
+        public static SessionKeys DeserializeSessionKeys(string json)
+        {
+            SessionKeys keys = JsonConvert.DeserializeObject<SessionKeys>(json);
+            return keys ?? throw new IOException("Invalid or empty session keys were passed in");
+        }
     }
 }

@@ -9,6 +9,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -18,11 +19,14 @@ namespace BluetoothChat.Functions
     {
         public bool IsRunning { get; private set; }
 
-        private readonly FrmBluetoothChat app;
         private readonly object sessionLock = new object();
         private readonly List<ClientSession> sessions = new List<ClientSession>();
+        private readonly FrmBluetoothChat app;
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
+
+        private string privateKey;
+        private string publicKey;
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -61,6 +65,12 @@ namespace BluetoothChat.Functions
             IsRunning = true;
             app.AddChatMember(app.Account);
             Task.Run(() => HostSession(cancelToken.Token));
+
+            using (RSA rsa = RSA.Create())
+            {
+                privateKey = rsa.ToXmlString(true);
+                publicKey = rsa.ToXmlString(false);
+            }
         }
 
         public void Stop()
@@ -162,7 +172,11 @@ namespace BluetoothChat.Functions
                         return;
                     }
 
-                    if (chat.MessageType == MessageType.Leave)
+                    if (chat.MessageType == MessageType.Join)
+                    {
+                        await SendPublicKeyToClient(stream);
+                    }
+                    else if (chat.MessageType == MessageType.Leave)
                     {
                         string accountName = session.Account.Name;
                         string accountId = session.Account.AccountId;
@@ -314,13 +328,17 @@ namespace BluetoothChat.Functions
             return message;
         }
 
-        private async Task ProcessChatMessage(ClientSession session, ChatMessage message)
+        public async Task SendPublicKeyToClient(NetworkStream stream)
         {
-            // Adjust the content of a message (if the user joins or leaves)
-            message = PrepareChatMessage(session, message);
+            ChatMessage message = new ChatMessage()
+            {
+                MessageType = MessageType.ServerPublicKey,
+                SenderName = app.Account.Name,
+                SenderId = app.Account.AccountId,
+                Content = publicKey
+            };
 
-            // Sends the finalized message to the clients
-            await SendMessageToClientsAsync(message);
+            await ChatProtocol.SendAsync(stream, message);
         }
 
         private bool IsClientMessageAllowed(ChatMessage message)
@@ -331,20 +349,6 @@ namespace BluetoothChat.Functions
                 message.MessageType == MessageType.UsernameChange;
         }
 
-        private ChatMessage PrepareChatMessage(ClientSession session, ChatMessage message)
-        {
-            // Any modifications or displays before passing message to clients
-            switch (message.MessageType)
-            {
-                case MessageType.Join:
-                    message.Content = $">> [{session.Account.Name}] has joined the server.";
-                    break;
-                case MessageType.Leave:
-                    message.Content = $">> [{session.Account.Name}] has left the server.";
-                    break;
-            }
-            return message;
-        }
 
         private bool ModifyClientSessionList(BluetoothClient client, ChatMessage message)
         {
@@ -371,6 +375,7 @@ namespace BluetoothChat.Functions
                             };
 
                             sessions.Add(newSession);
+                            message.Content = $">> [{session.Account.Name}] has joined the server.";
                             listAdjusted = true;
                         }
                         break;
