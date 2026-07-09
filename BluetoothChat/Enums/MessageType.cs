@@ -2,14 +2,20 @@
 {
     public enum MessageType
     {
+        // Client
         Chat,
         Join,
         Leave,
-        UsernameChange,
-        ServerMessage,
-        MemberList,
-        ServerPublicKey,
         ClientAesKey,
-        HandshakeComplete
+        HandshakeRequested,
+
+        // Server
+        ServerMessage,
+        ServerPublicKey,
+        MemberList,
+        HandshakeComplete,
+
+        // Shared
+        UsernameChange
     }
 }

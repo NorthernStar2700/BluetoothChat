@@ -10,6 +10,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -82,7 +83,7 @@ namespace BluetoothChat.Functions
             {
                 cancelToken?.Cancel();
             }
-            catch (Exception e) 
+            catch (Exception e)
             {
                 app.AppendConsoleText($"[ERROR] Cannot cancel token: {e.Message}.");
             }
@@ -92,9 +93,9 @@ namespace BluetoothChat.Functions
                 listener?.Stop();
                 listener?.Dispose();
             }
-            catch (Exception e) 
-            { 
-                app.AppendConsoleText($"[ERROR] Problem stopping and disposing server: {e.Message}."); 
+            catch (Exception e)
+            {
+                app.AppendConsoleText($"[ERROR] Problem stopping and disposing server: {e.Message}.");
             }
 
             ClientSession[] sessionCopy;
@@ -109,7 +110,7 @@ namespace BluetoothChat.Functions
                 {
                     session.Dispose();
                 }
-                catch (Exception) 
+                catch (Exception)
                 {
                     // Ignore
                 }
@@ -163,40 +164,76 @@ namespace BluetoothChat.Functions
             {
                 while (!ct.IsCancellationRequested && IsRunning)
                 {
-                    ChatMessage chat = await ChatProtocol.ReadAsync(stream);
-                    bool isValidMessage = IsClientMessageAllowed(chat);
+                    // TODO: Handle messages meant for handshakes (these would not be encrypted)
                     ClientSession session = FindClientSession(client);
-
-                    if (!isValidMessage || session == null)
+                    ChatMessage chat;
+                    if (session == null)
                     {
-                        return;
+                        chat = await ChatProtocol.ReadUnencryptedAsync(stream);
+                    }
+                    else
+                    {
+                        chat = await ChatProtocol.ReadAsync(stream, session.AesKey);
                     }
 
-                    if (chat.MessageType == MessageType.Join)
+                    bool isValidMessage = IsClientMessageAllowed(chat);
+                    if (!isValidMessage)
+                    {
+                        throw new IOException("Clients are not allowed to send server-sided messages");
+                    }
+
+
+                    if (chat.MessageType == MessageType.HandshakeRequested)
                     {
                         await SendPublicKeyToClient(stream);
                     }
-                    else if (chat.MessageType == MessageType.Leave)
+                    else if (chat.MessageType == MessageType.ClientAesKey)
                     {
+                        // TODO: Create Session with AES key
+                        ModifyClientSessionList(client, chat);
+                        await SendHandshakeCompleteToClient(stream);
+                    }
+                    else
+                    {
+                        if (!session.IsSecure)
+                        {
+                            return;
+                        }
+
+                        bool listAdjusted = ModifyClientSessionList(client, chat);
                         string accountName = session.Account.Name;
                         string accountId = session.Account.AccountId;
 
-                        chat = new ChatMessage()
+                        if (chat.MessageType == MessageType.Join)
                         {
-                            MessageType = MessageType.Leave,
-                            SenderName = accountName,
-                            SenderId = accountId,
-                            Content = $">> [{accountName}] has left the server."
-                        };
-                    }
+                            chat = new ChatMessage()
+                            {
+                                MessageType = MessageType.Join,
+                                SenderName = accountName,
+                                SenderId = accountId,
+                                Content = $">> [{accountName}] has joined the server."
+                            };
+                        }
+                        else if (chat.MessageType == MessageType.Leave)
+                        {
+                            chat = new ChatMessage()
+                            {
+                                MessageType = MessageType.Leave,
+                                SenderName = accountName,
+                                SenderId = accountId,
+                                Content = $">> [{accountName}] has left the server."
+                            };
+                        }
 
-                    bool listAdjusted = ModifyClientSessionList(client, chat);
+                        if (IsClientMessageChatRelated(chat))
+                        {
+                            await ProcessChatMessage(chat);
 
-                    await ProcessChatMessage(chat);
-
-                    if (listAdjusted)
-                    {
-                        await SendMemberListToClients();
+                            if (listAdjusted)
+                            {
+                                await SendMemberListToClients();
+                            }
+                        }
                     }
                 }
             }
@@ -204,17 +241,18 @@ namespace BluetoothChat.Functions
             {
                 // Ignore
             }
-            catch (IOException)
+            catch (IOException e)
             {
-                // Ignore
+                app.AppendConsoleText(e.Message);
             }
             catch (SocketException)
             {
                 // Ignore
             }
-            catch (Exception)
+            catch (Exception e)
             {
                 // Ignore
+                app.AppendConsoleText(e.Message);
             }
             finally
             {
@@ -241,7 +279,8 @@ namespace BluetoothChat.Functions
             // Update the text or member list displayed to the host's UI
             UpdateServerUIFromMessage(chat);
 
-            ClientSession[] sessionCopy = GetClientSessions();
+            // Send message to only secured clients
+            ClientSession[] sessionCopy = GetClientSessions().Where(ses => ses.IsSecure).ToArray();
 
             // Do all message sends concurrently in case a client is slow
             IEnumerable<Task> tasks = sessionCopy.Select(async session =>
@@ -253,7 +292,7 @@ namespace BluetoothChat.Functions
                     await session.SendLock.WaitAsync();
                     lockActivated = true;
 
-                    await ChatProtocol.SendAsync(session.Stream, chat);
+                    await ChatProtocol.SendAsync(session.Stream, chat, session.AesKey);
                 }
                 catch (IOException)
                 {
@@ -338,17 +377,50 @@ namespace BluetoothChat.Functions
                 Content = publicKey
             };
 
-            await ChatProtocol.SendAsync(stream, message);
+            await ChatProtocol.SendUnencryptedAsync(stream, message);
+        }
+
+        public async Task SendHandshakeCompleteToClient(NetworkStream stream)
+        {
+            ChatMessage message = new ChatMessage()
+            {
+                MessageType = MessageType.HandshakeComplete,
+                SenderName = app.Account.Name,
+                SenderId = app.Account.AccountId
+            };
+
+            await ChatProtocol.SendUnencryptedAsync(stream, message);
         }
 
         private bool IsClientMessageAllowed(ChatMessage message)
         {
-            return message.MessageType == MessageType.Chat ||
-                message.MessageType == MessageType.Join ||
-                message.MessageType == MessageType.Leave ||
-                message.MessageType == MessageType.UsernameChange;
+            switch (message.MessageType)
+            {
+                case MessageType.Chat:
+                case MessageType.Join:
+                case MessageType.Leave:
+                case MessageType.UsernameChange:
+                case MessageType.ClientAesKey:
+                case MessageType.HandshakeRequested:
+                    return true;
+                default:
+                    return false;
+            }
         }
 
+        private bool IsClientMessageChatRelated(ChatMessage message)
+        {
+            switch (message.MessageType)
+            {
+                case MessageType.Chat:
+                case MessageType.Join:
+                case MessageType.Leave:
+                case MessageType.UsernameChange:
+                    return true;
+                default:
+                    return false;
+            }
+        }
 
         private bool ModifyClientSessionList(BluetoothClient client, ChatMessage message)
         {
@@ -360,9 +432,19 @@ namespace BluetoothChat.Functions
                 // In case a user joins, leaves, or changes their name update the session list appropriately
                 switch (message.MessageType)
                 {
-                    case MessageType.Join:
+                    case MessageType.ClientAesKey:
                         if (session == null)
                         {
+                            byte[] encryptedKeyData = Convert.FromBase64String(message.Content);
+                            using (RSACng rsa = new RSACng())
+                            {
+                                rsa.FromXmlString(privateKey);
+                                rsa.Decrypt(encryptedKeyData, RSAEncryptionPadding.OaepSHA256);
+                            }
+
+                            string keyData = Encoding.UTF8.GetString(encryptedKeyData);
+                            SessionKeys keys = ObjectConverter.DeserializeSessionKeys(keyData);
+
                             ClientSession newSession = new ClientSession()
                             {
                                 Account = new AppAccount()
@@ -371,13 +453,17 @@ namespace BluetoothChat.Functions
                                     AccountId = message.SenderId
                                 },
                                 Client = client,
-                                Stream = client.GetStream()
+                                Stream = client.GetStream(),
+                                AesKey = keys.AesKey,
+                                IsSecure = true
                             };
 
                             sessions.Add(newSession);
-                            message.Content = $">> [{session.Account.Name}] has joined the server.";
                             listAdjusted = true;
                         }
+                        break;
+                    case MessageType.Join:
+                        listAdjusted = true;
                         break;
                     case MessageType.Leave:
                         if (session != null)

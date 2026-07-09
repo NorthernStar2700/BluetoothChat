@@ -25,10 +25,5 @@ namespace BluetoothChat.Functions
         {
             return GenerateBytes(32);
         }
-
-        public static byte[] GenerateHmacKey()
-        {
-            return GenerateBytes(32);
-        }
     }
 }

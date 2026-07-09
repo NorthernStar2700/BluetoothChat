@@ -9,6 +9,7 @@ using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
 using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -23,10 +24,10 @@ namespace BluetoothChat.Functions
         private NetworkStream stream;
         private CancellationTokenSource cancelToken;
         private SemaphoreSlim sendLock = new SemaphoreSlim(1, 1);
-
         private SessionKeys sessionKeys;
         private string serverPublicKey;
-        
+        private bool isSecure = false;
+
 
         public AppClient(FrmBluetoothChat app)
         {
@@ -53,6 +54,7 @@ namespace BluetoothChat.Functions
             try
             {
                 client = new BluetoothClient();
+                sendLock = new SemaphoreSlim(1, 1);
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server."));
                 await Task.Run(() =>
                 {
@@ -109,7 +111,14 @@ namespace BluetoothChat.Functions
                 await sendLock.WaitAsync();
                 lockActivated = true;
 
-                await ChatProtocol.SendAsync(stream, message);
+                if (!isSecure)
+                {
+                    await ChatProtocol.SendUnencryptedAsync(stream, message);
+                }
+                else
+                {
+                    await ChatProtocol.SendAsync(stream, message, sessionKeys.AesKey);
+                }
             }
             catch (Exception e)
             {
@@ -135,44 +144,85 @@ namespace BluetoothChat.Functions
                         return;
                     }
 
-                    ChatMessage response = await ChatProtocol.ReadAsync(stream);
-                    switch (response.MessageType) 
+                    if (!isSecure)
                     {
-                        case MessageType.Chat:
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{response.SenderName}]: {response.Content}"));
-                            break;
-                        case MessageType.Join:
-                        case MessageType.Leave:
-                        case MessageType.UsernameChange:
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
-                            break;
-                        case MessageType.ServerMessage:
-                            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{response.SenderName}]: {response.Content}"));
-                            break;
-                        case MessageType.MemberList:
-                            try
-                            {
-                                List<AppAccount> accounts = ObjectConverter.DeserializeAccountMembers(response.Content);
-                                app.ReplaceChatMembers(accounts);
-                            }
-                            catch (Exception e)
-                            {
-                                app.AppendConsoleText($"[ERROR] Message read error: {e.Message}.");
-                            }
-                            break;
-                        case MessageType.ServerPublicKey:
-                            serverPublicKey = response.Content;
-                            CreateAesKey();
-                            break;
+                        ChatMessage response = await ChatProtocol.ReadUnencryptedAsync(stream);
+                        switch (response.MessageType)
+                        {
+                            case MessageType.ServerPublicKey:
+                                serverPublicKey = response.Content;
+                                CreateSessionKeys();
+                                await SendAesKey();
+                                break;
+                            case MessageType.HandshakeComplete:
+                                isSecure = true;
+                                await SendJoinMessage();
+                                break;
+                        }
+                    }
+                    else
+                    {
+                        ChatMessage response = await ChatProtocol.ReadAsync(stream, sessionKeys.AesKey);
+                        switch (response.MessageType)
+                        {
+                            case MessageType.Chat:
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[{response.SenderName}]: {response.Content}"));
+                                break;
+                            case MessageType.Join:
+                            case MessageType.Leave:
+                            case MessageType.UsernameChange:
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(response.Content));
+                                break;
+                            case MessageType.ServerMessage:
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[HOST] [{response.SenderName}]: {response.Content}"));
+                                break;
+                            case MessageType.MemberList:
+                                try
+                                {
+                                    List<AppAccount> accounts = ObjectConverter.DeserializeAccountMembers(response.Content);
+                                    app.ReplaceChatMembers(accounts);
+                                }
+                                catch (Exception e)
+                                {
+                                    app.AppendConsoleText($"[ERROR] Message read error: {e.Message}.");
+                                }
+                                break;
+                        }
                     }
                 }
-                catch (Exception)
+                catch (Exception e)
                 {
                     app.ResetUI();
+                    app.AppendConsoleText(e.Message);
                     Dispose();
                     IsConnected = false;
                     return;
                 }
+            }
+        }
+
+        public async Task SendHandshakeRequest()
+        {
+            try
+            {
+                isSecure = false;
+                ChatMessage message = new ChatMessage()
+                {
+                    MessageType = MessageType.HandshakeRequested,
+                    SenderName = app.Account.Name,
+                    SenderId = app.Account.AccountId
+                };
+
+                await SendMessageToServer(message);
+                app.ClearInputText();
+            }
+            catch (Exception ex)
+            {
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send handshake request to server: {ex.Message}."));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
+                Dispose();
+                IsConnected = false;
+                return;
             }
         }
 
@@ -225,30 +275,43 @@ namespace BluetoothChat.Functions
             }
         }
 
-        public async Task SendAesKey()
+        private async Task SendAesKey()
         {
             if (sessionKeys == null)
             {
                 return;
             }
 
+            // Convery session key object to JSON, then a byte array
+            string sessionKeyJson = ObjectConverter.SerializeSessionKeys(sessionKeys);
+            byte[] sessionKeyData = Encoding.UTF8.GetBytes(sessionKeyJson);
+
+            // Encrypt the byte array using the servers public key
+            using (RSACng rsa = new RSACng())
+            {
+                rsa.FromXmlString(serverPublicKey);
+                rsa.Encrypt(sessionKeyData, RSAEncryptionPadding.OaepSHA256);
+            }
+
+            // Convert the encrypted byte array to a string to send in a message
+            string encryptedSessionKeyData = Convert.ToBase64String(sessionKeyData);
+
             ChatMessage message = new ChatMessage()
             {
                 MessageType = MessageType.ClientAesKey,
                 SenderName = app.Account.Name,
                 SenderId = app.Account.AccountId,
-                Content = ObjectConverter.SerializeSessionKeys(sessionKeys)
+                Content = encryptedSessionKeyData
             };
 
             await SendMessageToServer(message);
         }
 
-        private void CreateAesKey()
+        private void CreateSessionKeys()
         {
             sessionKeys = new SessionKeys()
             {
-                AesKey = CryptoKeyGenerator.GenerateAesKey(),
-                HmacKey = CryptoKeyGenerator.GenerateHmacKey()
+                AesKey = CryptoKeyGenerator.GenerateAesKey()
             };
         }
 
@@ -262,6 +325,7 @@ namespace BluetoothChat.Functions
             stream = null;
             client = null;
             sendLock = null;
+            isSecure = false;
         }
     }
 }

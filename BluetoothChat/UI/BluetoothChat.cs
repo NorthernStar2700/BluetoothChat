@@ -149,7 +149,7 @@ namespace BluetoothChat.UI
                         if (client.IsConnected)
                         {
                             Account.InitializeAccountId();
-                            await client.SendJoinMessage();
+                            await client.SendHandshakeRequest();
                             await client.StartReadingMessagesAsync();
                         }
                     }
