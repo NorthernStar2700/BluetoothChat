@@ -285,16 +285,18 @@ namespace BluetoothChat.Functions
             // Convery session key object to JSON, then a byte array
             string sessionKeyJson = ObjectConverter.SerializeSessionKeys(sessionKeys);
             byte[] sessionKeyData = Encoding.UTF8.GetBytes(sessionKeyJson);
+            byte[] encryptedKeyData;
 
             // Encrypt the byte array using the servers public key
             using (RSACng rsa = new RSACng())
             {
                 rsa.FromXmlString(serverPublicKey);
-                rsa.Encrypt(sessionKeyData, RSAEncryptionPadding.OaepSHA256);
+                encryptedKeyData = rsa.Encrypt(sessionKeyData, RSAEncryptionPadding.OaepSHA256);
             }
 
+            string encryptedSessionKeyData = Convert.ToBase64String(encryptedKeyData);
+
             // Convert the encrypted byte array to a string to send in a message
-            string encryptedSessionKeyData = Convert.ToBase64String(sessionKeyData);
 
             ChatMessage message = new ChatMessage()
             {

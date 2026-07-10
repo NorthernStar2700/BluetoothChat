@@ -63,15 +63,16 @@ namespace BluetoothChat.Functions
             app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients."));
             app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work."));
             app.SetConnectedCheckbox(true);
-            IsRunning = true;
-            app.AddChatMember(app.Account);
-            Task.Run(() => HostSession(cancelToken.Token));
 
             using (RSA rsa = RSA.Create())
             {
                 privateKey = rsa.ToXmlString(true);
                 publicKey = rsa.ToXmlString(false);
             }
+
+            IsRunning = true;
+            app.AddChatMember(app.Account);
+            Task.Run(() => HostSession(cancelToken.Token));
         }
 
         public void Stop()
@@ -167,7 +168,7 @@ namespace BluetoothChat.Functions
                     // TODO: Handle messages meant for handshakes (these would not be encrypted)
                     ClientSession session = FindClientSession(client);
                     ChatMessage chat;
-                    if (session == null)
+                    if (session == null || !session.IsSecure)
                     {
                         chat = await ChatProtocol.ReadUnencryptedAsync(stream);
                     }
@@ -436,13 +437,14 @@ namespace BluetoothChat.Functions
                         if (session == null)
                         {
                             byte[] encryptedKeyData = Convert.FromBase64String(message.Content);
+                            byte[] decryptedKeyData;
                             using (RSACng rsa = new RSACng())
                             {
                                 rsa.FromXmlString(privateKey);
-                                rsa.Decrypt(encryptedKeyData, RSAEncryptionPadding.OaepSHA256);
+                                decryptedKeyData = rsa.Decrypt(encryptedKeyData, RSAEncryptionPadding.OaepSHA256);
                             }
 
-                            string keyData = Encoding.UTF8.GetString(encryptedKeyData);
+                            string keyData = Encoding.UTF8.GetString(decryptedKeyData);
                             SessionKeys keys = ObjectConverter.DeserializeSessionKeys(keyData);
 
                             ClientSession newSession = new ClientSession()
