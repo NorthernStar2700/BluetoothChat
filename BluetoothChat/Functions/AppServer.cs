@@ -25,7 +25,6 @@ namespace BluetoothChat.Functions
         private readonly FrmBluetoothChat app;
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
-
         private string privateKey;
         private string publicKey;
 

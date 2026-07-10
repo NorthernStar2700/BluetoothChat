@@ -28,7 +28,6 @@ namespace BluetoothChat.Functions
         private string serverPublicKey;
         private bool isSecure = false;
 
-
         public AppClient(FrmBluetoothChat app)
         {
             this.app = app;

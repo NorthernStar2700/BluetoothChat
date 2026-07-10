@@ -115,8 +115,7 @@ namespace BluetoothChat.Functions
                 }
 
                 byte[] messageBuffer = await ReadBytesAsync(stream, messageLength);
-                string json = Encoding.UTF8.GetString(messageBuffer);
-                json = await SecureMessageProtocol.DecryptAsync(json, aesKey);
+                string json = await SecureMessageProtocol.DecryptAsync(messageBuffer, aesKey);
 
                 return ObjectConverter.DeserializeMessage(json);
             }
