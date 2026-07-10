@@ -168,7 +168,8 @@ namespace BluetoothChat.Functions
                     // TODO: Handle messages meant for handshakes (these would not be encrypted)
                     ClientSession session = FindClientSession(client);
                     ChatMessage chat;
-                    if (session == null || !session.IsSecure)
+
+                    if (client != null && (session == null || !session.IsSecure))
                     {
                         chat = await ChatProtocol.ReadUnencryptedAsync(stream);
                     }
@@ -250,10 +251,9 @@ namespace BluetoothChat.Functions
             {
                 // Ignore
             }
-            catch (Exception e)
+            catch (Exception)
             {
                 // Ignore
-                app.AppendConsoleText(e.Message);
             }
             finally
             {

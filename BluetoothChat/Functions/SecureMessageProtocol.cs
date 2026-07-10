@@ -41,15 +41,15 @@ namespace BluetoothChat.Functions
                     encryptedMessageBytes = memory.ToArray();
                 }
 
-                // Use the same initialization vector
+                // Use the same initialization vector and add it to the encrypted
                 byte[] result = Combine(iv, encryptedMessageBytes);
                 return result;
             }
         }
 
-        public static async Task<string> DecryptAsync(string message, byte[] aesKey)
+        public static async Task<string> DecryptAsync(byte[] message, byte[] aesKey)
         {
-            if (string.IsNullOrWhiteSpace(message))
+            if (message == null || message.Length == 0)
             {
                 throw new IOException("Message content is missing or empty.");
 
@@ -59,27 +59,25 @@ namespace BluetoothChat.Functions
                 throw new IOException("AES key is missing or empty.");
             }
 
-            byte[] dataToDecrypt = Convert.FromBase64String(message);
-
             using (Aes aes = Aes.Create())
             {
                 int ivLength = aes.BlockSize / 8;
                 byte[] iv = new byte[ivLength];
-                byte[] decryptedText = new byte[dataToDecrypt.Length - ivLength];
+                byte[] decryptedText = new byte[message.Length - ivLength];
+
+                // IV byte array now has data (IV = 0 to IV.Length)
+                Buffer.BlockCopy(message, 0, iv, 0, ivLength);
+
+                // Text byte array now has data (Message = IV.Length to decryptedText.Length)
+                Buffer.BlockCopy(message, iv.Length, decryptedText, 0, decryptedText.Length);
 
                 aes.Key = aesKey;
                 aes.Mode = CipherMode.CBC;
                 aes.Padding = PaddingMode.PKCS7;
                 aes.IV = iv;
 
-                // IV byte array now has data (IV = 0 to IV.Length)
-                Buffer.BlockCopy(dataToDecrypt, 0, iv, 0, ivLength);
-
-                // Text byte array now has data (Message = IV.Length to decryptedText.Length)
-                Buffer.BlockCopy(dataToDecrypt, ivLength, decryptedText, 0, decryptedText.Length);
-
                 using (ICryptoTransform decryptor = aes.CreateDecryptor())
-                using (MemoryStream memory = new MemoryStream(dataToDecrypt))
+                using (MemoryStream memory = new MemoryStream(decryptedText))
                 using (CryptoStream crypt = new CryptoStream(memory, decryptor, CryptoStreamMode.Read))
                 using (MemoryStream output = new MemoryStream())
                 {

@@ -3,10 +3,10 @@ using BluetoothChat.Enums;
 using BluetoothChat.Functions;
 using BluetoothChat.Models;
 using BluetoothChat.Properties;
+using BluetoothChat.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Text;
 using System.Windows.Forms;
 
 namespace BluetoothChat.UI
@@ -61,9 +61,9 @@ namespace BluetoothChat.UI
                     await client.SendLeaveMessage();
                 }
             }
-            catch (Exception ex)
+            catch (Exception)
             {
-                MessageBox.Show(ex.ToString());
+
             }
         }
 
@@ -189,7 +189,7 @@ namespace BluetoothChat.UI
             }
             catch (Exception ex)
             {
-                AppendConsoleText($"[ERROR] Cannot send message: {ex.Message}");
+                AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send message: {ex.Message}"));
             }
         }
 

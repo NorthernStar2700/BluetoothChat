@@ -184,7 +184,7 @@ namespace BluetoothChat.Functions
                                 }
                                 catch (Exception e)
                                 {
-                                    app.AppendConsoleText($"[ERROR] Message read error: {e.Message}.");
+                                    app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Message read error: {e.Message}."));
                                 }
                                 break;
                         }
