@@ -3,7 +3,7 @@ using Newtonsoft.Json;
 using System.Collections.Generic;
 using System.IO;
 
-namespace BluetoothChat.Functions
+namespace BluetoothChat.Utilities
 {
     public static class ObjectConverter
     {

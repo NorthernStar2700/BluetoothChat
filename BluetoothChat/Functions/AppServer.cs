@@ -4,12 +4,16 @@ using BluetoothChat.Models;
 using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net.Sockets;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Encodings;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Parameters;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -25,8 +29,6 @@ namespace BluetoothChat.Functions
         private readonly FrmBluetoothChat app;
         private BluetoothListener listener;
         private CancellationTokenSource cancelToken;
-        private string privateKey;
-        private string publicKey;
 
         public AppServer(FrmBluetoothChat app)
         {
@@ -45,9 +47,9 @@ namespace BluetoothChat.Functions
             cancelToken = new CancellationTokenSource();
             listener = new BluetoothListener(BluetoothConstants.ServiceGuid);
 
-            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Starting server..."));
             try
             {
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Starting server..."));
                 listener.Start();
                 app.Account.InitializeAccountId();
             }
@@ -59,19 +61,17 @@ namespace BluetoothChat.Functions
                 return;
             }
 
-            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients."));
-            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Make sure devices are connected to you via Bluetooth pairing for server connections to work."));
-            app.SetConnectedCheckbox(true);
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Creating RSA keys..."));
+            RsaProtocol.CreateRsaKeys();
 
-            using (RSA rsa = RSA.Create())
-            {
-                privateKey = rsa.ToXmlString(true);
-                publicKey = rsa.ToXmlString(false);
-            }
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Creating session..."));
+            Task.Run(() => HostSession(cancelToken.Token));
 
             IsRunning = true;
             app.AddChatMember(app.Account);
-            Task.Run(() => HostSession(cancelToken.Token));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for clients."));
+            app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(">> Make sure devices are connected to you via Bluetooth so devices can connect to your server."));
+            app.SetConnectedCheckbox(true);
         }
 
         public void Stop()
@@ -138,7 +138,7 @@ namespace BluetoothChat.Functions
 
                     _ = Task.Run(() => HandleClientAsync(client, stream, ct));
                 }
-                catch (IOException e)
+                catch (IOException)
                 {
                     return;
                 }
@@ -171,70 +171,83 @@ namespace BluetoothChat.Functions
                     if (client != null && (session == null || !session.IsSecure))
                     {
                         chat = await ChatProtocol.ReadUnencryptedAsync(stream);
+
+                        bool validMessage = IsClientMessageHandshakeRelated(chat);
+                        if (!validMessage)
+                        {
+                            throw new Exception("Client is not secure");
+                        }
+
+                        // Client-server handshake messages should only be processed if the client is not secure
+                        if (chat.MessageType == MessageType.HandshakeRequested)
+                        {
+                            await SendPublicKeyToClient(stream);
+                        }
+                        else if (chat.MessageType == MessageType.ClientAesKey)
+                        {
+                            // TODO: Create Session with AES key
+                            ModifyClientSessionList(client, chat);
+                            await SendHandshakeCompleteToClient(stream);
+                        }
+
+                        continue;
                     }
                     else
                     {
                         chat = await ChatProtocol.ReadAsync(stream, session.AesKey);
                     }
 
+                    if (session == null || !session.IsSecure)
+                    {
+                        return;
+                    }
+
                     bool isValidMessage = IsClientMessageAllowed(chat);
                     if (!isValidMessage)
                     {
-                        throw new IOException("Clients are not allowed to send server-sided messages");
+                        throw new Exception("Clients are not allowed to send handshake or server-sided messages");
                     }
 
+                    bool clientLeft = false;
+                    bool listAdjusted = ModifyClientSessionList(client, chat);
 
-                    if (chat.MessageType == MessageType.HandshakeRequested)
+                    string accountName = session.Account.Name;
+                    string accountId = session.Account.AccountId;
+
+                    if (chat.MessageType == MessageType.Join)
                     {
-                        await SendPublicKeyToClient(stream);
+                        chat = new ChatMessage()
+                        {
+                            MessageType = MessageType.Join,
+                            SenderName = accountName,
+                            SenderId = accountId,
+                            Content = $">> [{accountName}] has joined the server."
+                        };
                     }
-                    else if (chat.MessageType == MessageType.ClientAesKey)
+                    else if (chat.MessageType == MessageType.Leave)
                     {
-                        // TODO: Create Session with AES key
-                        ModifyClientSessionList(client, chat);
-                        await SendHandshakeCompleteToClient(stream);
+                        chat = new ChatMessage()
+                        {
+                            MessageType = MessageType.Leave,
+                            SenderName = accountName,
+                            SenderId = accountId,
+                            Content = $">> [{accountName}] has left the server."
+                        };
+
+                        clientLeft = true;
                     }
-                    else
+
+                    await ProcessChatMessage(chat);
+
+                    if (listAdjusted)
                     {
-                        if (!session.IsSecure)
-                        {
-                            return;
-                        }
+                        await SendMemberListToClients();
+                    }
 
-                        bool listAdjusted = ModifyClientSessionList(client, chat);
-                        string accountName = session.Account.Name;
-                        string accountId = session.Account.AccountId;
-
-                        if (chat.MessageType == MessageType.Join)
-                        {
-                            chat = new ChatMessage()
-                            {
-                                MessageType = MessageType.Join,
-                                SenderName = accountName,
-                                SenderId = accountId,
-                                Content = $">> [{accountName}] has joined the server."
-                            };
-                        }
-                        else if (chat.MessageType == MessageType.Leave)
-                        {
-                            chat = new ChatMessage()
-                            {
-                                MessageType = MessageType.Leave,
-                                SenderName = accountName,
-                                SenderId = accountId,
-                                Content = $">> [{accountName}] has left the server."
-                            };
-                        }
-
-                        if (IsClientMessageChatRelated(chat))
-                        {
-                            await ProcessChatMessage(chat);
-
-                            if (listAdjusted)
-                            {
-                                await SendMemberListToClients();
-                            }
-                        }
+                    // Exit the loop, client is no longer connected
+                    if (clientLeft)
+                    {
+                        break;
                     }
                 }
             }
@@ -242,9 +255,9 @@ namespace BluetoothChat.Functions
             {
                 // Ignore
             }
-            catch (IOException e)
+            catch (IOException)
             {
-                app.AppendConsoleText(e.Message);
+                // Ignore
             }
             catch (SocketException)
             {
@@ -294,15 +307,7 @@ namespace BluetoothChat.Functions
 
                     await ChatProtocol.SendAsync(session.Stream, chat, session.AesKey);
                 }
-                catch (IOException)
-                {
-                    failedSend = true;
-                }
-                catch (ObjectDisposedException)
-                {
-                    failedSend = true;
-                }
-                catch (SocketException)
+                catch (Exception)
                 {
                     failedSend = true;
                 }
@@ -374,7 +379,7 @@ namespace BluetoothChat.Functions
                 MessageType = MessageType.ServerPublicKey,
                 SenderName = app.Account.Name,
                 SenderId = app.Account.AccountId,
-                Content = publicKey
+                Content = RsaProtocol.GetPublicKeyString()
             };
 
             await ChatProtocol.SendUnencryptedAsync(stream, message);
@@ -400,22 +405,18 @@ namespace BluetoothChat.Functions
                 case MessageType.Join:
                 case MessageType.Leave:
                 case MessageType.UsernameChange:
-                case MessageType.ClientAesKey:
-                case MessageType.HandshakeRequested:
                     return true;
                 default:
                     return false;
             }
         }
 
-        private bool IsClientMessageChatRelated(ChatMessage message)
+        private bool IsClientMessageHandshakeRelated(ChatMessage message)
         {
             switch (message.MessageType)
             {
-                case MessageType.Chat:
-                case MessageType.Join:
-                case MessageType.Leave:
-                case MessageType.UsernameChange:
+                case MessageType.HandshakeRequested:
+                case MessageType.ClientAesKey:
                     return true;
                 default:
                     return false;
@@ -437,12 +438,15 @@ namespace BluetoothChat.Functions
                         {
                             byte[] encryptedKeyData = Convert.FromBase64String(message.Content);
                             byte[] decryptedKeyData;
-                            using (RSACng rsa = new RSACng())
-                            {
-                                rsa.FromXmlString(privateKey);
-                                decryptedKeyData = rsa.Decrypt(encryptedKeyData, RSAEncryptionPadding.OaepSHA256);
-                            }
 
+                            // Decrypt the byte array using the servers private key
+                            IAsymmetricBlockCipher cipher = new OaepEncoding(new RsaEngine(), new Sha256Digest(), null);
+                            RsaKeyParameters rsaPrivateKey = RsaProtocol.GetPrivateKey();
+
+                            cipher.Init(false, rsaPrivateKey);
+                            decryptedKeyData = cipher.ProcessBlock(encryptedKeyData, 0, encryptedKeyData.Length);
+
+                            // Convert the decrypted SessionKeys object to a string
                             string keyData = Encoding.UTF8.GetString(decryptedKeyData);
                             SessionKeys keys = ObjectConverter.DeserializeSessionKeys(keyData);
 
@@ -460,11 +464,15 @@ namespace BluetoothChat.Functions
                             };
 
                             sessions.Add(newSession);
-                            listAdjusted = true;
                         }
                         break;
                     case MessageType.Join:
-                        listAdjusted = true;
+                        // Client was already initialized when they sent an AES key to server
+                        if (session != null)
+                        {
+                            session.IsSecure = true;
+                            listAdjusted = true;
+                        }
                         break;
                     case MessageType.Leave:
                         if (session != null)
@@ -477,8 +485,9 @@ namespace BluetoothChat.Functions
                         if (session != null)
                         {
                             // Use the old name + new name here
+                            string oldName = session.Account.Name;
                             string newName = NameSanitizer.Sanitize(message.SenderName);
-                            message.Content = $">> [{session.Account.Name}] has changed their name to [{newName}].";
+                            message.Content = $">> [{oldName}] has changed their name to [{newName}].";
                             session.Account.Name = newName;
                             listAdjusted = true;
                         }

@@ -61,9 +61,9 @@ namespace BluetoothChat.UI
                     await client.SendLeaveMessage();
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-
+                MessageBox.Show(ex.Message);
             }
         }
 
@@ -97,7 +97,6 @@ namespace BluetoothChat.UI
                 string newUsername = NameSanitizer.Sanitize(dialog.NewUsername);
                 CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + newUsername;
                 Settings.Default.CurrentUsername = newUsername;
-                Account.Name = newUsername;
 
                 if (appMode == AppMode.Client && client.IsConnected)
                 {
@@ -105,11 +104,12 @@ namespace BluetoothChat.UI
                     ChatMessage message = new ChatMessage()
                     {
                         MessageType = MessageType.UsernameChange,
-                        SenderName = Account.Name,
+                        SenderName = newUsername,
                         SenderId = Account.AccountId,
                     };
 
                     await client.SendMessageToServer(message);
+                    Account.Name = newUsername;
                 }
                 else if (appMode == AppMode.Host && server.IsRunning)
                 {

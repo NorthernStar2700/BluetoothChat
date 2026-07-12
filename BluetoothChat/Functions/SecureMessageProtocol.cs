@@ -63,13 +63,19 @@ namespace BluetoothChat.Functions
             {
                 int ivLength = aes.BlockSize / 8;
                 byte[] iv = new byte[ivLength];
-                byte[] decryptedText = new byte[message.Length - ivLength];
+
+                if (message.Length <= ivLength)
+                {
+                    throw new CryptographicException("Message length is not greater than IV length.");
+                }
+
+                byte[] cipherText = new byte[message.Length - ivLength];
 
                 // IV byte array now has data (IV = 0 to IV.Length)
                 Buffer.BlockCopy(message, 0, iv, 0, ivLength);
 
                 // Text byte array now has data (Message = IV.Length to decryptedText.Length)
-                Buffer.BlockCopy(message, iv.Length, decryptedText, 0, decryptedText.Length);
+                Buffer.BlockCopy(message, iv.Length, cipherText, 0, cipherText.Length);
 
                 aes.Key = aesKey;
                 aes.Mode = CipherMode.CBC;
@@ -77,7 +83,7 @@ namespace BluetoothChat.Functions
                 aes.IV = iv;
 
                 using (ICryptoTransform decryptor = aes.CreateDecryptor())
-                using (MemoryStream memory = new MemoryStream(decryptedText))
+                using (MemoryStream memory = new MemoryStream(cipherText))
                 using (CryptoStream crypt = new CryptoStream(memory, decryptor, CryptoStreamMode.Read))
                 using (MemoryStream output = new MemoryStream())
                 {

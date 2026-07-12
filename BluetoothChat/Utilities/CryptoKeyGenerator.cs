@@ -1,7 +1,6 @@
 ﻿using System.Security.Cryptography;
 
-
-namespace BluetoothChat.Functions
+namespace BluetoothChat.Utilities
 {
     public static class CryptoKeyGenerator
     {

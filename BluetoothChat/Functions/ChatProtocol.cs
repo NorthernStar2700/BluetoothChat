@@ -1,4 +1,5 @@
 ﻿using BluetoothChat.Models;
+using BluetoothChat.Utilities;
 using System;
 using System.IO;
 using System.Net;

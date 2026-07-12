@@ -1,12 +1,13 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using System.Windows.Forms;
-using BluetoothChat.Models;
+﻿using BluetoothChat.Models;
 using BluetoothChat.Properties;
 using InTheHand.Net.Sockets;
 using Newtonsoft.Json;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading.Tasks;
+using System.Windows.Forms;
 
 namespace BluetoothChat.UI
 {
@@ -67,17 +68,28 @@ namespace BluetoothChat.UI
 
             // Format: (Device Name) | (Address)
             Device device = (Device)LbxDevices.Items[LbxDevices.SelectedIndex];
-            Clipboard.SetText(device.Address);
-            MessageBox.Show($"Copied device address {device.Address} to clipboard",
-                "Copy successful",
-                MessageBoxButtons.OK,
-                MessageBoxIcon.Information);
 
-            // Save to history if entry does not exist
-            Device deviceExists = devices.FirstOrDefault(dev => (dev.Name == device.Name) && (dev.Address == device.Address));
-            if (deviceExists == null)
+            try
             {
-                devices.Add(device);
+                Clipboard.SetText(device.Address);
+                MessageBox.Show($"Copied device address {device.Address} to clipboard",
+                    "Copy successful",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+
+                // Save to history if entry does not exist
+                Device deviceExists = devices.FirstOrDefault(dev => (dev.Name == device.Name) && (dev.Address == device.Address));
+                if (deviceExists == null)
+                {
+                    devices.Add(device);
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show($"Cannot copy Bluetooth address: {ex.Message}",
+                    "Copy error",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
             }
         }
 
@@ -96,42 +108,80 @@ namespace BluetoothChat.UI
                 return;
             }
 
-            LblSearch.Text = searchText;
-            BtnRestart.Enabled = false;
-            BtnCopy.Enabled = false;
+            RunActionOnUI(() =>
+            {
+                LblSearch.Text = searchText;
+                BtnRestart.Enabled = false;
+                BtnCopy.Enabled = false;
+            });
 
             BluetoothClient client = new BluetoothClient();
             try
             {
                 List<BluetoothDeviceInfo> foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
 
-                foreach (BluetoothDeviceInfo device in foundDevices)
+                RunActionOnUI(() =>
                 {
-                    string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
-                    Device deviceObj = new Device()
+                    foreach (BluetoothDeviceInfo device in foundDevices)
                     {
-                        Name = deviceName,
-                        Address = device.DeviceAddress.ToString()
-                    };
-                    LbxDevices.Items.Add(deviceObj);
-                }
+                        string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
+                        Device deviceObj = new Device()
+                        {
+                            Name = deviceName,
+                            Address = device.DeviceAddress.ToString()
+                        };
+                        LbxDevices.Items.Add(deviceObj);
+                    }
+                });
 
-                LblSearch.Text = searchCompleteText;
+                RunActionOnUI(() => LblSearch.Text = searchCompleteText);
 
                 if (LbxDevices.Items.Count > 0)
                 {
-                    BtnCopy.Enabled = true;
+                    RunActionOnUI(() => BtnCopy.Enabled = true);
                 }
             }
             catch (Exception)
             {
-                LblSearch.Text = searchErrorText;
+                RunActionOnUI(() => LblSearch.Text = searchErrorText);
             }
             finally
             {
                 BtnRestart.Enabled = true;
                 client.Close();
                 client.Dispose();
+            }
+        }
+
+        private void RunActionOnUI(Action action)
+        {
+            if (IsDisposed || Disposing || !IsHandleCreated)
+            {
+                return;
+            }
+
+            try
+            {
+                if (InvokeRequired)
+                {
+                    BeginInvoke(action);
+                }
+                else
+                {
+                    action();
+                }
+            }
+            catch (IOException)
+            {
+                // Ignore
+            }
+            catch (ObjectDisposedException)
+            {
+                // Ignore
+            }
+            catch (InvalidOperationException)
+            {
+                // Ignore
             }
         }
     }

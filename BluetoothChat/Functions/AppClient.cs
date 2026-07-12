@@ -5,10 +5,14 @@ using BluetoothChat.UI;
 using BluetoothChat.Utilities;
 using InTheHand.Net;
 using InTheHand.Net.Sockets;
+using Org.BouncyCastle.Crypto;
+using Org.BouncyCastle.Crypto.Digests;
+using Org.BouncyCastle.Crypto.Encodings;
+using Org.BouncyCastle.Crypto.Engines;
+using Org.BouncyCastle.Crypto.Parameters;
 using System;
 using System.Collections.Generic;
 using System.Net.Sockets;
-using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -54,21 +58,23 @@ namespace BluetoothChat.Functions
             {
                 client = new BluetoothClient();
                 sendLock = new SemaphoreSlim(1, 1);
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server."));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connecting to server..."));
                 await Task.Run(() =>
                 {
                     client.Connect(address, BluetoothConstants.ServiceGuid);
                 });
                 stream = client.GetStream();
+
                 IsConnected = true;
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Waiting for server handshake process..."));
             }
             catch (Exception ex)
             {
-                Dispose();
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot connect to server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 app.SetSendButtonEnabled(true);
                 app.SetConnectedCheckbox(false);
+                Dispose();
                 return;
             }
         }
@@ -76,8 +82,6 @@ namespace BluetoothChat.Functions
         public async Task StartReadingMessagesAsync()
         {
             app.ClearConsoleText();
-            app.SetSendButtonEnabled(true);
-            app.SetConnectedCheckbox(true);
 
             cancelToken?.Cancel();
             cancelToken?.Dispose();
@@ -91,7 +95,7 @@ namespace BluetoothChat.Functions
             {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot read messages from server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
-                IsConnected = false;
+                Dispose();
                 return;
             }
         }
@@ -149,12 +153,18 @@ namespace BluetoothChat.Functions
                         switch (response.MessageType)
                         {
                             case MessageType.ServerPublicKey:
+
                                 serverPublicKey = response.Content;
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Creation AES session key..."));
                                 CreateSessionKeys();
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Sending AES session key..."));
                                 await SendAesKey();
                                 break;
                             case MessageType.HandshakeComplete:
                                 isSecure = true;
+                                app.SetSendButtonEnabled(true);
+                                app.SetConnectedCheckbox(true);
+                                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage("Connection successful! Joining server..."));
                                 await SendJoinMessage();
                                 break;
                         }
@@ -194,7 +204,6 @@ namespace BluetoothChat.Functions
                     app.ResetUI();
                     app.AppendConsoleText(e.Message);
                     Dispose();
-                    IsConnected = false;
                     return;
                 }
             }
@@ -220,7 +229,6 @@ namespace BluetoothChat.Functions
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send handshake request to server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 Dispose();
-                IsConnected = false;
                 return;
             }
         }
@@ -244,7 +252,6 @@ namespace BluetoothChat.Functions
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot send join message to server: {ex.Message}."));
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 Dispose();
-                IsConnected = false;
                 return;
             }
         }
@@ -269,7 +276,6 @@ namespace BluetoothChat.Functions
                 finally
                 {
                     Dispose();
-                    IsConnected = false;
                 }
             }
         }
@@ -281,21 +287,20 @@ namespace BluetoothChat.Functions
                 return;
             }
 
-            // Convery session key object to JSON, then a byte array
+            // Convert session key object to JSON, then a byte array
             string sessionKeyJson = ObjectConverter.SerializeSessionKeys(sessionKeys);
             byte[] sessionKeyData = Encoding.UTF8.GetBytes(sessionKeyJson);
             byte[] encryptedKeyData;
 
             // Encrypt the byte array using the servers public key
-            using (RSACng rsa = new RSACng())
-            {
-                rsa.FromXmlString(serverPublicKey);
-                encryptedKeyData = rsa.Encrypt(sessionKeyData, RSAEncryptionPadding.OaepSHA256);
-            }
+            IAsymmetricBlockCipher cipher = new OaepEncoding(new RsaEngine(), new Sha256Digest(), null);
+            RsaKeyParameters rsaPublicKey = RsaProtocol.ReadPublicKey(serverPublicKey);
 
-            string encryptedSessionKeyData = Convert.ToBase64String(encryptedKeyData);
+            cipher.Init(true, rsaPublicKey);
+            encryptedKeyData = cipher.ProcessBlock(sessionKeyData, 0, sessionKeyData.Length);
 
             // Convert the encrypted byte array to a string to send in a message
+            string encryptedSessionKeyData = Convert.ToBase64String(encryptedKeyData);
 
             ChatMessage message = new ChatMessage()
             {
@@ -327,6 +332,7 @@ namespace BluetoothChat.Functions
             client = null;
             sendLock = null;
             isSecure = false;
+            IsConnected = false;
         }
     }
 }

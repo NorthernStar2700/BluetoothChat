@@ -1,7 +1,7 @@
 ﻿using System.Linq;
 using System.Text.RegularExpressions;
 
-namespace BluetoothChat.Functions
+namespace BluetoothChat.Utilities
 {
     public static class NameSanitizer
     {
