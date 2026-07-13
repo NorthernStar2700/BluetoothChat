@@ -18,6 +18,8 @@ namespace BluetoothChat.UI
         private const string searchErrorText = "Error finding devices. Try scanning again";
         private readonly string deviceList;
         private List<Device> devices;
+        private BluetoothClient client;
+        private bool formClosed = false;
 
         public FrmDeviceSearch(string deviceList)
         {
@@ -25,9 +27,9 @@ namespace BluetoothChat.UI
             this.deviceList = deviceList;
         }
 
-        private void FrmDeviceSearch_Load(object sender, EventArgs e)
+        private async void FrmDeviceSearch_Load(object sender, EventArgs e)
         {
-            BtnCopy.Enabled = false;
+            DisableUIElements();
             try
             {
                 List<Device> deviceHistory = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
@@ -44,19 +46,27 @@ namespace BluetoothChat.UI
             {
                 devices = new List<Device>();
             }
-            _ = SearchForDevicesAsync();
+            
+            await SearchForDevicesAsync();
+        }
+
+        private void FrmDeviceSearch_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            client?.Close();
+            client?.Dispose();
         }
 
         private void FrmDeviceSearch_FormClosed(object sender, FormClosedEventArgs e)
         {
+            formClosed = true;
             Settings.Default.DeviceHistory = JsonConvert.SerializeObject(devices);
             Settings.Default.Save();
         }
 
-        private void BtnRestart_Click(object sender, EventArgs e)
+        private async void BtnRestart_Click(object sender, EventArgs e)
         {
-            LbxDevices.Items.Clear();
-            _ = SearchForDevicesAsync();
+            DisableUIElements();
+            await SearchForDevicesAsync();
         }
 
         private void BtnCopy_Click(object sender, EventArgs e)
@@ -103,59 +113,72 @@ namespace BluetoothChat.UI
 
         private async Task SearchForDevicesAsync()
         {
-            if (IsDisposed || Disposing || !IsHandleCreated)
+            client = new BluetoothClient();
+            List<BluetoothDeviceInfo> foundDevices = new List<BluetoothDeviceInfo>();
+            bool searchHadErrors = false;
+
+            try
+            {
+                foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
+            }
+            catch (Exception)
+            {
+                searchHadErrors = true;
+                EnableUIElementsDueToError();
+            }
+
+            if (formClosed || searchHadErrors)
             {
                 return;
             }
 
             RunActionOnUI(() =>
             {
+                foreach (BluetoothDeviceInfo device in foundDevices)
+                {
+                    string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
+                    Device deviceObj = new Device()
+                    {
+                        Name = deviceName,
+                        Address = device.DeviceAddress.ToString()
+                    };
+                    LbxDevices.Items.Add(deviceObj);
+                }
+
+                LblSearch.Text = searchCompleteText;
+
+                if (LbxDevices.Items.Count > 0)
+                {
+                    BtnCopy.Enabled = true;
+                }
+
+                BtnRestart.Enabled = true;
+            });
+        }
+
+        private void DisableUIElements()
+        {
+            RunActionOnUI(() =>
+            {
+                LbxDevices.Items.Clear();
                 LblSearch.Text = searchText;
                 BtnRestart.Enabled = false;
                 BtnCopy.Enabled = false;
             });
+        }
 
-            BluetoothClient client = new BluetoothClient();
-            try
+        private void EnableUIElementsDueToError()
+        {
+            RunActionOnUI(() =>
             {
-                List<BluetoothDeviceInfo> foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
-
-                RunActionOnUI(() =>
-                {
-                    foreach (BluetoothDeviceInfo device in foundDevices)
-                    {
-                        string deviceName = !string.IsNullOrWhiteSpace(device.DeviceName) ? device.DeviceName : "No Name Available";
-                        Device deviceObj = new Device()
-                        {
-                            Name = deviceName,
-                            Address = device.DeviceAddress.ToString()
-                        };
-                        LbxDevices.Items.Add(deviceObj);
-                    }
-                });
-
-                RunActionOnUI(() => LblSearch.Text = searchCompleteText);
-
-                if (LbxDevices.Items.Count > 0)
-                {
-                    RunActionOnUI(() => BtnCopy.Enabled = true);
-                }
-            }
-            catch (Exception)
-            {
-                RunActionOnUI(() => LblSearch.Text = searchErrorText);
-            }
-            finally
-            {
+                LblSearch.Text = searchErrorText;
                 BtnRestart.Enabled = true;
-                client.Close();
-                client.Dispose();
-            }
+            });
         }
 
         private void RunActionOnUI(Action action)
         {
-            if (IsDisposed || Disposing || !IsHandleCreated)
+            if (formClosed || IsDisposed || Disposing || !IsHandleCreated)
             {
                 return;
             }

@@ -46,7 +46,7 @@ namespace BluetoothChat.UI
             CurrentUsernameToolStripMenuItem.Text = UIMessages.UsernameMessage + Account.Name;
         }
 
-        private async void FrmBluetoothChat_FormClosing(object sender, FormClosingEventArgs e)
+        private void FrmBluetoothChat_FormClosing(object sender, FormClosingEventArgs e)
         {
             Settings.Default.Save();
 
@@ -58,7 +58,7 @@ namespace BluetoothChat.UI
                 }
                 else if (client.IsConnected)
                 {
-                    await client.SendLeaveMessage();
+                    client.SendLeaveMessage();
                 }
             }
             catch (Exception ex)
