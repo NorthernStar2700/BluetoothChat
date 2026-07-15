@@ -7,6 +7,7 @@ using BluetoothChat.Utilities;
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows.Forms;
 
 namespace BluetoothChat.UI
@@ -52,18 +53,24 @@ namespace BluetoothChat.UI
 
             try
             {
+                e.Cancel = true;
                 if (server.IsRunning)
                 {
                     server.Stop();
                 }
                 else if (client.IsConnected)
                 {
-                    client.SendLeaveMessage();
+                    AppendConsoleText(DisplayFormat.FormatConsoleMessage("Leaving server..."));
+                    Task.Run(() => client.SendLeaveMessage());
                 }
             }
             catch (Exception ex)
             {
                 MessageBox.Show(ex.Message);
+            }
+            finally
+            {
+                e.Cancel = false;
             }
         }
 
@@ -205,6 +212,7 @@ namespace BluetoothChat.UI
 
                 if (client.IsConnected && appMode == AppMode.Client)
                 {
+                    AppendConsoleText(DisplayFormat.FormatConsoleMessage("Leaving server..."));
                     await client.SendLeaveMessage();
                 }
 

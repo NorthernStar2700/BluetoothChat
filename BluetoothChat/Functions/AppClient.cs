@@ -12,6 +12,7 @@ using Org.BouncyCastle.Crypto.Engines;
 using Org.BouncyCastle.Crypto.Parameters;
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
@@ -91,12 +92,22 @@ namespace BluetoothChat.Functions
             {
                 await ReadMessagesFromServer(cancelToken.Token);
             }
+            catch (SocketException)
+            {
+                // Ignore
+            }
+            catch (IOException)
+            {
+                // Ignore
+            }
             catch (Exception ex)
             {
-                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot read messages from server: {ex.Message}."));
+                app.AppendConsoleText(DisplayFormat.FormatConsoleMessage($"[ERROR] Cannot read messages from server: {ex.Message}"));
+            }
+            finally
+            {
                 app.AppendConsoleText(DisplayFormat.FormatConsoleMessage(UIMessages.BluetoothPrompt));
                 Dispose();
-                return;
             }
         }
 
@@ -251,9 +262,18 @@ namespace BluetoothChat.Functions
                     SenderId = app.Account.AccountId
                 };
 
-                await SendMessageToServer(message);
-
-                Dispose();
+                try
+                {
+                    await SendMessageToServer(message);
+                }
+                catch (Exception)
+                {
+                    // Ignore
+                }
+                finally
+                {
+                    Dispose();
+                }
             }
         }
 
@@ -304,8 +324,6 @@ namespace BluetoothChat.Functions
             client?.Close();
             client?.Dispose();
             sendLock?.Dispose();
-            cancelToken?.Cancel();
-            cancelToken?.Dispose();
 
             stream = null;
             client = null;
