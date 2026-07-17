@@ -16,9 +16,9 @@ namespace BluetoothChat.UI
     {
         public AppAccount Account { get; private set; }
 
-        private AppMode appMode;
         private readonly AppClient client;
         private readonly AppServer server;
+        private AppMode appMode;
 
         public FrmBluetoothChat()
         {
@@ -53,7 +53,6 @@ namespace BluetoothChat.UI
 
             try
             {
-                e.Cancel = true;
                 if (server.IsRunning)
                 {
                     server.Stop();
@@ -70,12 +69,21 @@ namespace BluetoothChat.UI
             }
             finally
             {
-                e.Cancel = false;
+                Close();
             }
         }
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
         {
+            if (server.IsRunning || client.IsConnected)
+            {
+                MessageBox.Show("You cannot use the device searcher when you are connected",
+                    "Device search prevention",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Error);
+                return;
+            }
+
             using (FrmDeviceSearch deviceSearch = new FrmDeviceSearch(Settings.Default.DeviceHistory))
             {
                 deviceSearch.ShowDialog();

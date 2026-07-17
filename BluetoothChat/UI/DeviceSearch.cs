@@ -18,8 +18,8 @@ namespace BluetoothChat.UI
         private const string searchErrorText = "Error finding devices. Try scanning again";
         private readonly string deviceList;
         private List<Device> devices;
-        private BluetoothClient client;
-        private bool formClosed = false;
+        private bool searchInProgress = false;
+        private bool searchComplete = false;
 
         public FrmDeviceSearch(string deviceList)
         {
@@ -30,6 +30,7 @@ namespace BluetoothChat.UI
         private async void FrmDeviceSearch_Load(object sender, EventArgs e)
         {
             DisableUIElements();
+
             try
             {
                 List<Device> deviceHistory = (List<Device>)JsonConvert.DeserializeObject(deviceList, typeof(List<Device>));
@@ -52,19 +53,31 @@ namespace BluetoothChat.UI
 
         private void FrmDeviceSearch_FormClosing(object sender, FormClosingEventArgs e)
         {
-            client?.Close();
-            client?.Dispose();
+            if (searchComplete)
+            {
+                return;
+            }
+
+            e.Cancel = true;
+
+            if (searchInProgress)
+            {
+                return;
+            }
         }
 
         private void FrmDeviceSearch_FormClosed(object sender, FormClosedEventArgs e)
         {
-            formClosed = true;
-            Settings.Default.DeviceHistory = JsonConvert.SerializeObject(devices);
-            Settings.Default.Save();
+            if (devices != null && devices.Count > 0)
+            {
+                Settings.Default.DeviceHistory = JsonConvert.SerializeObject(devices);
+                Settings.Default.Save();
+            }
         }
 
         private async void BtnRestart_Click(object sender, EventArgs e)
         {
+            searchComplete = false;
             DisableUIElements();
             await SearchForDevicesAsync();
         }
@@ -113,21 +126,28 @@ namespace BluetoothChat.UI
 
         private async Task SearchForDevicesAsync()
         {
-            client = new BluetoothClient();
             List<BluetoothDeviceInfo> foundDevices = new List<BluetoothDeviceInfo>();
-            bool searchHadErrors = false;
 
+            BluetoothClient client = new BluetoothClient();
             try
             {
-                foundDevices = await Task.Run(() => client.DiscoverDevices().ToList());
+                searchInProgress = true;
+                foundDevices = await Task.Run(() =>
+                {
+                    List<BluetoothDeviceInfo> list = client.DiscoverDevices().ToList();
+                    return list;
+                });
             }
             catch (Exception)
             {
-                searchHadErrors = true;
+                searchInProgress = false;
+                searchComplete = true;
+                LblSearch.Text = searchErrorText;
+                client?.Dispose();
                 EnableUIElementsDueToError();
             }
 
-            if (formClosed || searchHadErrors)
+            if (searchComplete)
             {
                 return;
             }
@@ -153,6 +173,9 @@ namespace BluetoothChat.UI
                 }
 
                 BtnRestart.Enabled = true;
+                searchInProgress = false;
+                searchComplete = true;
+                client?.Dispose();
             });
         }
 
@@ -178,7 +201,7 @@ namespace BluetoothChat.UI
 
         private void RunActionOnUI(Action action)
         {
-            if (formClosed || IsDisposed || Disposing || !IsHandleCreated)
+            if (searchComplete || IsDisposed || Disposing || !IsHandleCreated)
             {
                 return;
             }

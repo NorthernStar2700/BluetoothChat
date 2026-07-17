@@ -63,8 +63,11 @@ namespace BluetoothChat.UI
 
             LbxDevices.Items.RemoveAt(LbxDevices.SelectedIndex);
             string newList = JsonConvert.SerializeObject(LbxDevices.Items.OfType<Device>().ToList());
-            Settings.Default.DeviceHistory = newList;
-            Settings.Default.Save();
+            if (!string.IsNullOrWhiteSpace(newList))
+            {
+                Settings.Default.DeviceHistory = newList;
+                Settings.Default.Save();
+            }
 
             if (LbxDevices.Items.Count == 0) 
             {
