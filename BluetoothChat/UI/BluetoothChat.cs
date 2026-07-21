@@ -67,10 +67,6 @@ namespace BluetoothChat.UI
             {
                 MessageBox.Show(ex.Message);
             }
-            finally
-            {
-                Close();
-            }
         }
 
         private void SearchToolStripMenuItem_Click(object sender, EventArgs e)
